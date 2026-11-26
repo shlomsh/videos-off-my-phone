@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { unsafeReasons, confirmation } from '../extension/lib/gate.js';
+import { unsafeReasons, confirmation, visibility, chosenVis, visName, visWho, VIS } from '../extension/lib/gate.js';
 import { runQueue } from '../extension/lib/queue.js';
 import { parseLibraryPage, parseBulkInfo, parseDetails, findInLibrary, BULK_FIELDS } from '../extension/lib/photos.js';
 import { progressLine } from '../extension/lib/progress.js';
@@ -56,8 +56,8 @@ test('gate passes only a fully confirmed video', () => {
 });
 
 // ---- queue
-function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }, original = true } = {}) {
-  const w = { store: new Map(Object.entries(records)), sessions: [], streams: [], auth: 0, history: [] };
+function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }, original = true, choice = 'private' } = {}) {
+  const w = { store: new Map(Object.entries(records)), sessions: [], given: [], streams: [], auth: 0, history: [] };
   w.d = {
     channelId: 'ch', now: () => 't',
     getRecord: async (k) => w.store.get(k) ?? null,
@@ -65,7 +65,8 @@ function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }
     getAuth: async () => { w.auth++; return 'tok'; },
     getDetails: async (k) => ({ key: k, fileName: `${k}.MOV`, size: 10, original }),
     probe: async () => probe,
-    startSession: async (x) => { w.sessions.push(x.key); return 'uri'; },
+    privacyOf: () => choice,
+    startSession: async (x, privacy) => { w.sessions.push(x.key); w.given.push(privacy); return 'uri'; },
     stream: async ({ key }) => {
       assert.equal(w.store.get(key).state, 'sending', 'recorded before any byte is sent');
       w.streams.push(key);
@@ -241,7 +242,105 @@ test('confirmation repeats only what YouTube reports', () => {
   assert.equal(c((x) => { delete x.video.fileDetails; }).level, 'wait');
   assert.equal(c((x) => { x.video = undefined; }).level, 'bad');
   assert.match(c((x) => { x.video.fileDetails.fileSize = '99'; }).text, /99 of 100/);
-  assert.match(c((x) => { x.video.status.privacyStatus = 'public'; }).text, /public/);
+  assert.equal(c((x) => { x.video.status.privacyStatus = 'public'; }).text, 'It is Public on YouTube, but you chose Private.');
+  assert.equal(c((x) => { delete x.video.status.privacyStatus; }).text, 'YouTube did not say who can watch it.');
   assert.match(c((x) => { x.video.status = { uploadStatus: 'rejected', rejectionReason: 'duplicate', privacyStatus: 'private' }; }).text, /duplicate/);
   assert.equal(c((x) => { x.video.snippet.channelId = 'other'; }).level, 'bad');
+});
+
+// ---- who may watch it
+test('the visibility YouTube reports is judged against the choice, by direction', () => {
+  const r = (privacy) => Object.freeze({ state: 'uploaded', id: 'v1', privacy });
+  const y = (privacyStatus) => ({ status: { privacyStatus } });
+  const want = {
+    private: { private: 'same', unlisted: 'less', public: 'less' },
+    unlisted: { private: 'more', unlisted: 'same', public: 'less' },
+    public: { private: 'more', unlisted: 'more', public: 'same' },
+  };
+  for (const chosen of VIS) {
+    for (const actual of VIS) {
+      const rec = r(chosen);
+      assert.deepEqual(visibility(rec, y(actual)), { chosen, actual, way: want[chosen][actual] }, `${chosen} ${actual}`);
+      assert.equal(rec.privacy, chosen); // the choice is never overwritten
+    }
+    for (const odd of [undefined, null, '', 'Private', 'PUBLIC', 'unlisted ', 'constructor', 'toString', 1, {}, ['private']]) {
+      assert.deepEqual(visibility(r(chosen), y(odd)), { chosen, actual: null, way: 'unknown' }, String(odd));
+    }
+    assert.deepEqual(visibility(r(chosen), {}), { chosen, actual: null, way: 'unknown' });
+    assert.deepEqual(visibility(r(chosen), undefined), { chosen, actual: null, way: 'unknown' });
+  }
+  // Uploads from before the choice existed, or an unreadable choice, count as Private.
+  for (const rec of [{ state: 'uploaded' }, { privacy: undefined }, { privacy: 'Public' }, { privacy: 'constructor' }, { privacy: 2 }, null, undefined]) {
+    assert.equal(chosenVis(rec), 'private');
+    assert.deepEqual(visibility(rec, y('unlisted')), { chosen: 'private', actual: 'unlisted', way: 'less' });
+    assert.deepEqual(visibility(rec, y('private')), { chosen: 'private', actual: 'private', way: 'same' });
+  }
+  assert.deepEqual(VIS, ['private', 'unlisted', 'public']);
+  assert.deepEqual(VIS.map(visName), ['Private', 'Unlisted', 'Public']);
+  assert.deepEqual(VIS.map(visWho), ['Only you', 'Anyone with the link', 'Anyone']);
+  assert.equal(visName('x'), null); assert.equal(visWho(undefined), null);
+});
+
+test('the gate passes what is as private as chosen, or more, and blocks the rest', () => {
+  for (const chosen of VIS) {
+    for (const actual of VIS) {
+      const g = good(); g.record.privacy = chosen; g.video.status.privacyStatus = actual;
+      const less = VIS.indexOf(actual) > VIS.indexOf(chosen);
+      assert.deepEqual(unsafeReasons(g), less ? [`privacy is ${actual}, not ${chosen}`] : [], `${chosen} ${actual}`);
+      const c = confirmation(g.record, g.video, 'ch');
+      assert.deepEqual([c.level, c.text], less
+        ? ['bad', `It is ${visName(actual)} on YouTube, but you chose ${visName(chosen)}.`]
+        : ['good', `YouTube received all 100 bytes · ${visName(actual)} · 3840×2160 · processing finished.`], `${chosen} ${actual}`);
+    }
+    for (const odd of [undefined, '', 'Private', 'secret']) {
+      const g = good(); g.record.privacy = chosen; g.video.status.privacyStatus = odd;
+      assert.deepEqual(unsafeReasons(g), [`privacy is unknown, not ${chosen}`]);
+      assert.equal(confirmation(g.record, g.video, 'ch').level, 'bad');
+    }
+  }
+  const legacy = good(); delete legacy.record.privacy; legacy.video.status.privacyStatus = 'unlisted';
+  assert.deepEqual(unsafeReasons(legacy), ['privacy is unlisted, not private']);
+  legacy.video.status.privacyStatus = 'private';
+  assert.deepEqual(unsafeReasons(legacy), []);
+});
+
+test('the queue sends and records the choice of this press, or of the try it continues', async () => {
+  // Fresh.
+  let w = queueWorld({ choice: 'unlisted' });
+  await runQueue(['a'], w.d);
+  assert.deepEqual(w.given, ['unlisted']);
+  assert.deepEqual(w.history, [['a', 'sending'], ['a', 'uploaded']]);
+  assert.equal(w.store.get('a').privacy, 'unlisted');
+  // The 'sending' record carried it as well, before any byte was sent.
+  w = queueWorld({ choice: 'public' });
+  const seen = [];
+  const stream = w.d.stream; w.d.stream = async (x) => { seen.push(w.store.get(x.key).privacy); return stream(x); };
+  await runQueue(['a'], w.d);
+  assert.deepEqual(seen, ['public']);
+  assert.equal(w.store.get('a').privacy, 'public');
+  // Recovered: kept from the 'sending' record, nothing sent again.
+  const sending = (o) => ({ a: { state: 'sending', sessionUri: 'u', size: 10, channel: 'ch', ...o } });
+  w = queueWorld({ records: sending({ privacy: 'unlisted' }), probe: { state: 'finished', id: 'yt' }, choice: 'public' });
+  await runQueue(['a'], w.d);
+  assert.deepEqual(w.given, []);
+  assert.equal(w.store.get('a').privacy, 'unlisted');
+  assert.equal(w.store.get('a').state, 'uploaded');
+  // Started again: the earlier try's choice, not this press's.
+  w = queueWorld({ records: sending({ privacy: 'unlisted' }), choice: 'public' });
+  await runQueue(['a'], w.d);
+  assert.deepEqual(w.given, ['unlisted']);
+  assert.equal(w.store.get('a').privacy, 'unlisted');
+  // A try from before the choice existed was Private, whatever this press says.
+  w = queueWorld({ records: sending({}), choice: 'public' });
+  await runQueue(['a'], w.d);
+  assert.deepEqual(w.given, ['private']);
+  assert.equal(w.store.get('a').privacy, 'private');
+  // No readable choice: nothing is started.
+  for (const choice of [undefined, null, '', 'Public', 'secret']) {
+    w = queueWorld();
+    w.d.privacyOf = () => choice;
+    const done = await runQueue(['a'], w.d);
+    assert.deepEqual([w.sessions, w.streams, w.history], [[], [], []], String(choice));
+    assert.deepEqual(done, [{ key: 'a', result: 'failed' }]);
+  }
 });

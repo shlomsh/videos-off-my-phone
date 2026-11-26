@@ -321,3 +321,24 @@ body{margin:0}
 .ge .fdlg{left:4px;right:4px}.ge .fyn{font-size:.85em}.ge .fyn>span{padding:4px 1px}.ge .fhd .fpill{font-size:.9em}.ge .ph3 p{overflow-wrap:anywhere}
 .ge .ph3{grid-template-rows:auto auto auto;align-content:start}.ge .fyn{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.ge .fyn>span{overflow:hidden;text-overflow:clip}
 .ge .fgrid>span{background:var(--c,#556)}.ge .fpics>span{background:#333}.ge .fpics .th,.ge .pt3 .th{background:#333}
+/* Who can watch on YouTube, and the "moved out" counter (design canvas versions 32 to 37). Menu styles of v32 are left out: the tag is read only. */
+.ge .vlist{display:grid;gap:10px}
+.ge .vopt{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:16px;cursor:pointer}
+.ge .vopt input{width:20px;height:20px;margin:0;accent-color:var(--go)}
+.ge .vopt.on{background:var(--sel);border-color:var(--sel);color:var(--selink)}.ge .vopt.on .mute{color:var(--selink)}
+.ge .vopt:focus-within{outline:2px solid var(--go);outline-offset:2px}
+.ge .vwarn{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:var(--waitsoft);color:var(--ink)}.ge .vwarn .mk,.ge .vwarn svg{color:var(--wait);flex:none}
+.ge .vsafe{display:flex;gap:10px;align-items:center;color:var(--safe)}
+.ge .scr .tag.bad{background:var(--stop);color:#fff}
+.ge .won{display:flex;align-items:center;gap:8px;margin-right:12px;padding:4px 14px 4px 8px;border-radius:99px;background:var(--safesoft);color:var(--ink);white-space:nowrap;flex:none}
+.ge .won[hidden]{display:none}
+.ge .won b{display:block;font-weight:500;font-size:14px;line-height:1.2}.ge .won small{display:block;font-size:12px;color:var(--mute);line-height:1.2}
+.ge .ring{display:block;flex:none}
+.ge .gain{margin-left:auto;display:flex;align-items:center;gap:12px;padding:8px 16px 8px 8px;border-radius:99px;background:var(--safesoft)}
+.ge .gain strong{font-weight:500}
+@container (max-width:900px){.ge .won small{display:none}.ge .won{margin-right:4px;padding:4px 10px 4px 6px}.ge .gain{margin-left:0;border-radius:16px}}
+.ge .aft .ttl{align-items:center}.ge .gain{padding:5px 16px 5px 6px;gap:10px}.ge .gain strong{font-size:15px}
+@container (max-width:900px){.ge .won{margin-left:auto;margin-right:0}.ge .bar{column-gap:10px}}
+.ge .ph3 .mine{flex-wrap:wrap;max-width:100%;row-gap:6px}.ge .ph3 .mine .pt3{width:56px;height:32px}
+.ge .ph3 .mine>.sm{flex-basis:100%}.ge .ph3 .vwarn{margin:0}
+.ge .ph3 .vwarn{justify-self:stretch;padding:8px 14px}.ge .ph3.tight .fone{--fw:min(112px,9cqw)}

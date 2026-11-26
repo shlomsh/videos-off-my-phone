@@ -1,3 +1,24 @@
+/** Who may watch a video, from most to least private. */
+export const VIS = ['private', 'unlisted', 'public'];
+export const visName = (v) => ({ private: 'Private', unlisted: 'Unlisted', public: 'Public' })[v] ?? null;
+export const visWho = (v) => ({ private: 'Only you', unlisted: 'Anyone with the link', public: 'Anyone' })[v] ?? null;
+/** What the user chose at Move. Records from before the choice existed were all Private. */
+export const chosenVis = (record) => (VIS.includes(record?.privacy) ? record.privacy : 'private');
+
+/**
+ * How YouTube's visibility now compares with the choice: { chosen, actual (or null), way }.
+ * way: same, more (more private than chosen: fine), less (blocks) or unknown (blocks).
+ * The stored choice is never changed here.
+ */
+export function visibility(record, video) {
+  const chosen = chosenVis(record);
+  const raw = video?.status?.privacyStatus;
+  const actual = VIS.includes(raw) ? raw : null;
+  const way = !actual ? 'unknown' : actual === chosen ? 'same' : VIS.indexOf(actual) < VIS.indexOf(chosen) ? 'more' : 'less';
+  return { chosen, actual, way };
+}
+const visOk = (vis) => vis.way === 'same' || vis.way === 'more';
+
 /**
  * Decides whether a moved video passes every check. Returns the reasons it does
  * not; an empty list means it passes. Anything missing counts against it.
@@ -22,7 +43,8 @@ export function unsafeReasons({ record, details, video, channelId }) {
   } else {
     need(s.uploadStatus === 'processed' && video.processingDetails?.processingStatus === 'succeeded', 'YouTube is still processing');
   }
-  need(s.privacyStatus === 'private', `privacy is ${s.privacyStatus ?? 'unknown'}, not private`);
+  const vis = visibility(record, video);
+  need(visOk(vis), `privacy is ${vis.actual ?? 'unknown'}, not ${vis.chosen}`);
   need(Number(video.fileDetails?.fileSize) === details.size, 'size at YouTube not confirmed');
   const v = video.fileDetails?.videoStreams?.[0];
   // Portrait clips may be reported rotated, so compare without orientation.
@@ -41,13 +63,15 @@ export function confirmation(record, video, channelId) {
   const bad = [];
   if (['failed', 'rejected', 'deleted'].includes(s.uploadStatus)) bad.push(`YouTube says ${s.uploadStatus}${s.failureReason || s.rejectionReason ? ` (${s.failureReason ?? s.rejectionReason})` : ''}`);
   if (got && got !== record.size) bad.push(`YouTube received ${n(got)} of ${n(record.size)} bytes`);
-  if (s.privacyStatus !== 'private') bad.push(`privacy is ${s.privacyStatus ?? 'unknown'}`);
+  const vis = visibility(record, video);
+  if (vis.way === 'unknown') bad.push('YouTube did not say who can watch it');
+  else if (!visOk(vis)) bad.push(`It is ${visName(vis.actual)} on YouTube, but you chose ${visName(vis.chosen)}`);
   if (channelId && video.snippet?.channelId !== channelId) bad.push('on another channel');
   if (bad.length) return { mark: '✗', level: 'bad', text: `${bad.join('; ')}.` };
   const v = video.fileDetails?.videoStreams?.[0];
   const facts = [
     got ? `YouTube received all ${n(got)} bytes` : 'size not reported yet',
-    'Private',
+    visName(vis.actual),
     v?.widthPixels && `${v.widthPixels}×${v.heightPixels}${v.frameRateFps ? ` at ${Math.round(v.frameRateFps)} fps` : ''}`,
   ];
   const ready = s.uploadStatus === 'processed' && video.processingDetails?.processingStatus === 'succeeded' && got > 0;

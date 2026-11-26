@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rowState, placeOf, gate, compare, canCopy } from '../extension/ui/rows.js';
+import { rowState, placeOf, gate, compare, canCopy, factsFor, differs } from '../extension/ui/rows.js';
+import { VIS, visName } from '../extension/lib/gate.js';
 import { plainReason, plainError, isoLength, amountLine, timeLeft, sentLine } from '../extension/ui/text.js';
 
 const good = () => ({ id: 'y', snippet: { channelId: 'UC' }, status: { uploadStatus: 'processed', privacyStatus: 'private' }, processingDetails: { processingStatus: 'succeeded' }, fileDetails: { fileSize: '100', videoStreams: [{ widthPixels: 3840, heightPixels: 2160 }] } });
@@ -90,7 +91,9 @@ test('the comparison never claims what was not checked', () => {
 
 test('plain words', () => {
   assert.match(plainReason('in a shared album (Trip)'), /shared album “Trip”/);
-  assert.match(plainReason('privacy is unlisted, not private'), /Set it back to Private/);
+  assert.equal(plainReason('privacy is unlisted, not private'), 'It is Unlisted on YouTube, but you chose Private. Set it back to Private in YouTube Studio, then check again.');
+  assert.equal(plainReason('privacy is public, not unlisted'), 'It is Public on YouTube, but you chose Unlisted. Set it back to Unlisted in YouTube Studio, then check again.');
+  for (const chosen of VIS) assert.equal(plainReason(`privacy is unknown, not ${chosen}`), 'YouTube did not say who can watch it.');
   assert.equal(plainReason('something new'), 'something new.');
   assert.match(plainError('YouTube: The user has exceeded the number of videos they may upload.').title, /all YouTube takes/);
   assert.match(plainError('Lost the Google Photos tab. Keep one open at photos.google.com.').title, /No Google Photos tab/);
@@ -104,4 +107,87 @@ test('progress words', () => {
   assert.equal(timeLeft({ bytes: 60e6, total: 120e6, sent: 60e6, seconds: 20 }), 'About 20 seconds left.');
   assert.equal(timeLeft({ bytes: 0, total: 120e6, sent: 0, seconds: 0 }), '');
   assert.equal(sentLine({ bytes: 60e6, total: 120e6, sent: 60e6, seconds: 5 }), '60 MB of 120 MB, 12 MB a second');
+});
+
+// ---- who may watch it
+const yv = (privacyStatus) => { const y = good(); y.status.privacyStatus = privacyStatus; return y; };
+const D = { size: 100, width: 2160, height: 3840, original: true, sharedAlbums: [], timestamp: Date.parse('2026-11-25T12:00:00Z'), tzOffset: 0 };
+
+test('a row stops only when YouTube is less private than chosen, or does not say', () => {
+  const row = (chosen, actual) => rowState(v(rec({ privacy: chosen })), ctx({ statuses: new Map([['y', yv(actual)]]) }));
+  for (const chosen of VIS) {
+    for (const actual of VIS) {
+      const st = row(chosen, actual);
+      if (VIS.indexOf(actual) > VIS.indexOf(chosen)) {
+        assert.deepEqual({ s: st.s, word: st.word, meta: st.meta, at: st.at, ax: st.ax }, {
+          s: 'stop', word: 'Not as you chose', meta: `It is ${visName(actual)} on YouTube. You chose ${visName(chosen)}.`,
+          at: 'Do not delete', ax: `Set it back to ${visName(chosen)} in YouTube Studio, then check again.`,
+        }, `${chosen} ${actual}`);
+      } else {
+        assert.equal(st.s, 'yt', `${chosen} ${actual}`);
+        assert.equal(st.meta, `The whole file, under 1 MB. ${visName(actual)}. 4K (3840 × 2160).`);
+      }
+    }
+    for (const odd of [undefined, '', 'Private', 'secret']) {
+      const st = row(chosen, odd);
+      assert.deepEqual([st.s, st.word, st.ax], ['stop', 'Something is wrong', 'Keep the original.'], String(odd));
+      assert.equal(st.meta, 'YouTube did not say who can watch it.');
+    }
+  }
+  // Records from before the choice: Private.
+  assert.equal(s(rec(), { statuses: new Map([['y', yv('unlisted')]]) }), 'stop');
+  assert.equal(rowState(v(rec()), ctx({ statuses: new Map([['y', yv('unlisted')]]) })).word, 'Not as you chose');
+  // Other rows name what YouTube says, not "Private".
+  const slow = yv('private'); slow.processingDetails.processingStatus = 'processing';
+  assert.equal(rowState(v(rec({ privacy: 'public' })), ctx({ statuses: new Map([['y', slow]]) })).meta, 'The whole file, under 1 MB. Private.');
+  const slowU = yv('unlisted'); slowU.processingDetails.processingStatus = 'processing';
+  assert.equal(rowState(v(rec({ privacy: 'unlisted' })), ctx({ statuses: new Map([['y', slowU]]) })).meta, 'The whole file, under 1 MB. Unlisted.');
+  assert.equal(rowState(v(rec({ privacy: 'public', sha256: null })), ctx({ statuses: new Map([['y', yv('public')]]) })).meta, 'Public. The upload was interrupted.');
+});
+
+test('"Seen by" says who can watch it; only less private, or not saying, is different', () => {
+  const seen = (chosen, actual, d = D, st = { s: 'yt' }) => compare(v(rec({ privacy: chosen })), st, d, actual === null ? undefined : yv(actual)).find((f) => f.name === 'Seen by');
+  const fact = (chosen, actual, d = D, st = { s: 'yt' }) => factsFor(v(rec({ privacy: chosen })), st, d, actual === null ? undefined : yv(actual)).find((f) => f.name === 'Seen by');
+  const who = { private: 'Only you (Private)', unlisted: 'Anyone with the link (Unlisted)', public: 'Anyone (Public)' };
+  const short = { private: 'Only you', unlisted: 'Anyone with the link', public: 'Anyone' };
+  for (const chosen of VIS) {
+    for (const actual of VIS) {
+      const way = actual === chosen ? 'same' : VIS.indexOf(actual) < VIS.indexOf(chosen) ? 'more' : 'less';
+      const m = way === 'less' ? 'diff' : way === 'more' ? 'more' : chosen === 'private' ? 'fine' : 'asyou';
+      const f = seen(chosen, actual);
+      assert.deepEqual([f.b, f.m], [who[actual], m], `${chosen} ${actual}`);
+      const g = fact(chosen, actual);
+      assert.deepEqual([g.b, g.m], [short[actual], m], `${chosen} ${actual}`);
+      // A shared album still says so, unless YouTube is less private than chosen.
+      assert.equal(seen(chosen, actual, { ...D, sharedAlbums: ['Trip'] }).m, way === 'less' ? 'diff' : 'shared');
+      assert.equal(seen(chosen, actual, null).m, way === 'less' ? 'diff' : 'none');
+      // Placing it: only 'diff' holds it back from step 3.
+      const facts = factsFor(v(rec({ privacy: chosen })), { s: 'yt' }, D, yv(actual));
+      assert.deepEqual(differs(facts).map((x) => x.name), way === 'less' ? ['Seen by'] : [], `${chosen} ${actual}`);
+      assert.equal(placeOf({ s: 'yt', word: '', ax: '' }, facts, { ready: true }), way === 'less' ? 'look' : 'youtube', `${chosen} ${actual}`);
+    }
+    for (const odd of [undefined, '', 'Private']) {
+      const f = seen(chosen, odd);
+      assert.equal(f.m, 'diff', String(odd));
+      assert.equal(fact(chosen, odd).b, 'Not known');
+    }
+    assert.equal(seen(chosen, 'secret').b, 'secret');
+    assert.equal(seen(chosen, null).m, 'wait');
+  }
+  // 'more' and 'asyou' are not differences anywhere.
+  for (const m of ['more', 'asyou']) {
+    assert.deepEqual(differs([{ m }]), []);
+    assert.equal(placeOf({ s: 'yt', word: '', ax: '' }, [{ m: 'same' }, { m }], { ready: true }), 'youtube');
+  }
+  // Before the choice existed: Private.
+  assert.deepEqual([seen(undefined, 'private').m, seen(undefined, 'unlisted').m], ['fine', 'diff']);
+});
+
+test('the gate in rows lets an Unlisted or Public copy through as chosen', () => {
+  for (const chosen of VIS) {
+    for (const actual of VIS) {
+      const less = VIS.indexOf(actual) > VIS.indexOf(chosen);
+      assert.deepEqual(gate({ record: rec({ privacy: chosen }), details: D, video: yv(actual), channelId: 'UC' }), less ? [`privacy is ${actual}, not ${chosen}`] : 'ready');
+    }
+  }
 });

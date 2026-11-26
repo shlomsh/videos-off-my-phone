@@ -1,3 +1,5 @@
+import { VIS, visName } from '../lib/gate.js';
+
 export const gb = (n) => (n >= 999.5e6 ? `${(n / 1e9).toFixed(2)} GB` : n >= 1e6 || !n ? `${Math.round(n / 1e6)} MB` : 'under 1 MB');
 export const length = (ms) => `${Math.floor(Math.round(ms / 1000) / 60)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
 export const clock = (d = new Date()) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -45,8 +47,12 @@ export function plainReason(r) {
   if (album) return `It is in the shared album “${album[1]}”. Deleting it removes it there too.`;
   const other = /^(.+) is different$/.exec(r);
   if (other) return `${other[1]} is not the same on both sides. Keep the original.`;
-  const privacy = /^privacy is (\w+), not private$/.exec(r);
-  if (privacy) return privacy[1] === 'unknown' ? 'YouTube did not say whether it is Private.' : `It is not Private any more: YouTube says ${privacy[1]}. Set it back to Private, then check again.`;
+  const privacy = /^privacy is (\w+), not (\w+)$/.exec(r);
+  if (privacy) {
+    const name = (x) => (VIS.includes(x) ? visName(x) : x);
+    const [now, chose] = [name(privacy[1]), name(privacy[2])];
+    return privacy[1] === 'unknown' ? 'YouTube did not say who can watch it.' : `It is ${now} on YouTube, but you chose ${chose}. Set it back to ${chose} in YouTube Studio, then check again.`;
+  }
   return {
     'no finished upload on record': 'This app has no finished upload for it.',
     'not found on YouTube': 'YouTube does not list this video. Keep the original.',

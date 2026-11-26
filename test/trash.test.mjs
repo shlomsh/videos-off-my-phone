@@ -260,7 +260,7 @@ test('says which side did not answer, and why', async () => {
   const w = movedWorld({ getVideo: async () => { throw new Error('x'); } });
   await assert.rejects(trashOne(M, w.d), /^StopError: Nothing was deleted\. YouTube did not answer|Nothing was deleted\. YouTube did not answer, so the copy could not be checked\./);
   const u = movedWorld({ getVideo: async () => ({ ...VID, status: { uploadStatus: 'processed', privacyStatus: 'unlisted' } }) });
-  await assert.rejects(trashOne(M, u.d), /not Private any more/);
+  await assert.rejects(trashOne(M, u.d), /Nothing was deleted\. It is Unlisted on YouTube, but you chose Private\. Set it back to Private in YouTube Studio, then check again\./);
   const l = movedWorld({ getVideo: async () => ({ ...VID, contentDetails: { duration: 'PT9S' } }) });
   await assert.rejects(trashOne(M, l.d), /Length is not the same on both sides/);
 });
@@ -285,4 +285,45 @@ test('why a moved video may not be deleted', () => {
   assert.deepEqual(movedReasons({ ...all, video: { ...VID, recordingDetails: { recordingDate: '2026-11-20' } } }), ['Recorded is different']);
   for (const k of ['record', 'details', 'video', 'channelId']) assert.ok(movedReasons({ ...all, [k]: undefined }).length, k);
   assert.ok(movedReasons({ ...all, record: { ...REC, id: undefined } }).length);
+});
+
+// ---- who may watch it
+const VISES = ['private', 'unlisted', 'public'];
+const seenAs = (privacyStatus) => ({ ...VID, status: { uploadStatus: 'processed', privacyStatus } });
+
+test('why a moved video may not be deleted: as private as chosen or more passes, less or unknown blocks', () => {
+  for (const chosen of VISES) {
+    for (const actual of VISES) {
+      const less = VISES.indexOf(actual) > VISES.indexOf(chosen);
+      const record = Object.freeze({ ...REC, privacy: chosen });
+      assert.deepEqual(movedReasons({ record, details: DET, video: seenAs(actual), channelId: 'C', duration: 5600 }),
+        less ? [`privacy is ${actual}, not ${chosen}`] : [], `${chosen} ${actual}`);
+    }
+    for (const odd of [undefined, '', 'Private', 'secret']) {
+      assert.deepEqual(movedReasons({ record: { ...REC, privacy: chosen }, details: DET, video: seenAs(odd), channelId: 'C', duration: 5600 }), [`privacy is unknown, not ${chosen}`], String(odd));
+    }
+    assert.deepEqual(movedReasons({ record: { ...REC, privacy: chosen }, details: DET, video: { ...VID, status: undefined }, channelId: 'C', duration: 5600 }).at(-1), `privacy is unknown, not ${chosen}`);
+  }
+  // A record from before the choice: Private only.
+  assert.deepEqual(movedReasons({ record: REC, details: DET, video: seenAs('unlisted'), channelId: 'C', duration: 5600 }), ['privacy is unlisted, not private']);
+  assert.deepEqual(movedReasons({ record: { ...REC, privacy: 'Unlisted' }, details: DET, video: seenAs('unlisted'), channelId: 'C', duration: 5600 }), ['privacy is unlisted, not private']);
+});
+
+test('a moved video with another visibility: deleted as chosen, kept when it is less private', async () => {
+  const go = (privacy, actual) => movedWorld({ getRecord: async () => ({ ...REC, privacy }), getVideo: async () => seenAs(actual) });
+  for (const [chosen, actual] of [['unlisted', 'unlisted'], ['public', 'public'], ['public', 'private'], ['public', 'unlisted'], ['unlisted', 'private']]) {
+    const w = go(chosen, actual);
+    assert.equal((await trashOne(M, w.d)).state, 'trashed', `${chosen} ${actual}`);
+    assert.deepEqual(w.calls, [cid('A')]);
+  }
+  for (const [chosen, actual, text] of [
+    ['unlisted', 'public', 'It is Public on YouTube, but you chose Unlisted. Set it back to Unlisted in YouTube Studio, then check again.'],
+    ['private', 'public', 'It is Public on YouTube, but you chose Private. Set it back to Private in YouTube Studio, then check again.'],
+    ['public', undefined, 'YouTube did not say who can watch it.'],
+    ['public', 'Public', 'YouTube did not say who can watch it.'],
+  ]) {
+    const w = go(chosen, actual);
+    await assert.rejects(trashOne(M, w.d), { message: `Nothing was deleted. ${text}` }, `${chosen} ${actual}`);
+    assert.deepEqual([w.calls, w.notes], [[], []]);
+  }
 });
