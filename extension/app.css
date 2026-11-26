@@ -359,3 +359,26 @@ body{margin:0}
 .ge .one.hello{align-content:safe center}.ge .one.hello>.sm{text-wrap:pretty}.ge .one.hello .three li>span:last-child{text-wrap:balance}
 @media (max-height:760px){.ge .one.hello{gap:9px}.ge .one.hello h1{font-size:31px}}
 @container (max-width:600px){.ge .quota{row-gap:6px}.ge .qarr{line-height:1}}
+
+/* v42 account menu, remove access, finish first (from the v41 boards) */
+.ge .menu{inset:72px 16px auto auto;width:min(380px,calc(100vw - 32px));max-height:calc(100vh - 88px);padding:14px;border:0;border-radius:24px;display:grid;gap:2px}
+.ge .menu::backdrop{background:#1012152e}
+.ge .menu:not(:popover-open){display:none}
+.ge .acct{display:grid;gap:2px}.ge .acct:empty{display:none}
+.ge .who1{display:flex;gap:14px;align-items:center;padding:6px 10px 14px}
+.ge .who1{align-items:flex-start}.ge .who1>.stack{flex:1;min-width:0}.ge .who1 strong{overflow-wrap:anywhere}.ge .who1 .btn{margin-top:8px}
+.ge .av.big{width:48px;height:48px;display:grid;place-items:center;font-size:20px;cursor:default}
+.ge .acct>.why{padding:0 10px 8px}
+.ge .mi{appearance:none;border:0;background:none;font:inherit;color:var(--ink);display:grid;grid-template-columns:22px minmax(0,1fr);gap:14px;align-items:start;text-align:left;padding:12px 10px;border-radius:14px;cursor:pointer}
+.ge .mi:hover{background:var(--rail)}.ge .mi .mk{margin-top:1px;color:var(--mute)}
+.ge .mi:disabled{opacity:.5;cursor:not-allowed}.ge .mi:disabled:hover{background:none}
+.ge .mi b{display:block;font-weight:500}.ge .mi small{display:block;color:var(--mute);font-size:13px;line-height:1.4;margin-top:2px}
+.ge .acct hr{border:0;border-top:1px solid var(--line);margin:6px 0;width:100%}
+.ge .pl{padding:10px 10px 4px;color:var(--mute)}
+.ge .menu details{padding:0 10px}
+.ge .tickrow{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start;padding:14px 16px;border:1px solid var(--line);border-radius:16px;cursor:pointer}
+.ge .tickrow input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--go)}
+.ge .dlg .vwarn{margin:0}.ge .dlg p.why{margin:0}
+.ge .dlg ul.fin{gap:12px}.ge .dlg .fin li{grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start;line-height:1.5}
+.ge .dlg .fin0{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start}
+@media (max-width:560px){.ge .dlg .bt{flex-wrap:wrap}}

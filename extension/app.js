@@ -1,10 +1,11 @@
 import * as photos from './lib/photos.js';
 import * as yt from './lib/youtube.js';
 import { streamToSession, probeSession, StopError } from './lib/transfer.js';
-import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive } from './lib/records.js';
+import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive, forgetYouTubeStored, forgetAll, finishCounts } from './lib/records.js';
 import { runQueue } from './lib/queue.js';
 import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib/trash.js';
-import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL } from './config.js';
+import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
+import { askRemove, askFinish } from './ui/account.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
 import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
@@ -205,6 +206,64 @@ function entered() {
   const key = params.get('key');
   if (key && !single) setTimeout(() => openSingle(key));
 }
+
+// ---- the account menu
+const TERMS = 'https://www.youtube.com/t/terms';
+const midWork = () => !!busy && busy.kind !== 'list';
+/** A fresh page, signed out: nothing this visit learned from YouTube stays in memory. */
+const freshStart = () => location.replace(`app.html${params.get('tab') ? `?tab=${encodeURIComponent(params.get('tab'))}` : ''}`);
+/** Forgets the sign-in and the channel in this browser. The records stay. */
+async function signOutNow() {
+  if (midWork() || dialog) return;
+  $('menu').hidePopover();
+  let ok = false;
+  await work('signout', 'Signing out', async () => { await yt.signOut(); ok = true; });
+  if (ok) freshStart();
+}
+/** Google withdraws this app's access; then this Chrome forgets the YouTube side, or everything. */
+async function removeAccess() {
+  if (midWork() || dialog) return;
+  $('menu').hidePopover();
+  const moved = [...(await allRecords()).values()].filter((r) => r.state === 'uploaded').length;
+  const out = movedOut();
+  let revoked = false; // a second try after a failure does not ask Google again
+  const act = async (forget) => {
+    let why = 'Wait a moment, then try again.'; // also if the work could not start
+    await work('revoke', 'Removing access', async () => {
+      try {
+        await exclusive(async () => {
+          if (!revoked) { await yt.revoke(CLIENT_ID); revoked = true; log('Google removed this app’s access.'); }
+          const n = forget ? await forgetAll() : await forgetYouTubeStored();
+          log(forget ? `Forgot ${n} records.` : `Forgot the YouTube side of ${n} records.`);
+          await yt.signOut();
+        });
+        why = null;
+      } catch (e) {
+        log(`Access not removed: ${e?.message ?? e}`);
+        why = revoked ? 'Google removed the access, but this Chrome could not forget everything yet. Try again.'
+          : /busy in another tab|another Videos Off My Phone page/i.test(e?.message ?? '') ? 'Videos Off My Phone is busy in another tab. Nothing was changed.'
+            : 'Google did not confirm it, so nothing was changed. Try again.';
+      }
+    });
+    return why;
+  };
+  dialog = true;
+  let done = false;
+  try { done = await askRemove({ moved, counter: out.total > 0 ? gb(out.total) : '', act }); } finally { dialog = false; }
+  if (done) freshStart();
+}
+/** Test copy only: what to finish here before switching to the Web Store version. */
+async function finishFirst() {
+  if (dialog) return;
+  $('menu').hidePopover();
+  const counts = finishCounts(await allRecords());
+  const out = movedOut();
+  dialog = true;
+  let show = false;
+  try { show = await askFinish(counts, out.total > 0 ? gb(out.total) : ''); } finally { dialog = false; }
+  if (show) { pairing = watching = null; go(3); }
+}
+const menuItem = (f, kind, name, text, onclick, off = '') => h('button', { type: 'button', class: 'mi', 'data-f': f, onclick, disabled: !!off, title: off || null }, mark(kind, 22), h('span', null, h('b', null, name), h('small', null, text)));
 
 // ---- one video, opened from its page
 const openSingle = (key) => work('one', 'Reading one video', async () => {
@@ -549,6 +608,7 @@ function verdict(x) {
   if (place.get(v.key) === 'gone') return out('info', 'c-wait', 'It is not in your Google Photos library.', 'It may be in the trash. Do not empty the trash before this copy is checked.');
   if (p === 'lost') return out('fail', 'c-stop', 'It did not arrive.', st.s === 'cut' ? 'The upload broke off. YouTube is asked before it is sent again.' : st.meta);
   if (p === 'moving') return out('clock', 'c-yt', 'Not yet.', st.s === 'pause' ? 'It waits for you to sign in.' : run ? 'It is on its way to YouTube.' : 'It waits for you to continue.');
+  if (st.s === 'again') return out('info', 'c-wait', 'Moved before. Not found on YouTube yet.', 'It is not moved again, and it cannot be deleted here.');
   if (p === 'stays') return /shared album/.test(st.ax) ? out('held', 'c-wait', 'It stays.', st.ax) : out('info', 'c-wait', 'It stays.', /start to end/.test(st.ax) ? 'The upload broke off, so it was never checked from start to end.' : /another channel/i.test(st.word) ? 'It is on another channel. Switch channel to check it.' : st.ax);
   if (st.s === 'proc') return out('clock', 'c-yt', 'Not yet.', 'YouTube is working on it. It moves on by itself.');
   if (st.s === 'sent') return askFailed && !asking ? out('info', 'c-wait', 'Not known now.', 'YouTube did not answer. Nothing is confirmed.') : out('clock', 'c-yt', 'Not yet.', 'It was sent. YouTube is asked about it next.');
@@ -981,7 +1041,7 @@ function paintBar(all) {
   if (channel) {
     $('av').textContent = [...channel.title][0]?.toUpperCase() ?? '?';
     $('av').title = `${channel.title}, signed in`;
-    $('av').setAttribute('aria-label', `${channel.title}, signed in`);
+    $('av').setAttribute('aria-label', `${channel.title}, signed in. Account menu`);
   }
   const out = movedOut();
   const won = $('won');
@@ -989,9 +1049,16 @@ function paintBar(all) {
   won.title = out.words;
   won.setAttribute('aria-label', out.words);
   draw(won, won.hidden ? [] : [ring(24, 9, 3, out.part), h('span', null, h('b', null, gb(out.total)), h('small', null, 'moved out'))]);
-  draw($('account'), channel ? [h('h2', null, channel.title), h('p', { class: 'sm mute' }, 'Your YouTube channel. You choose who can watch each video when you move it.'),
+  const off = midWork() ? 'Wait until the work is done.' : '';
+  draw($('account'), channel ? [
+    h('div', { class: 'who1' }, h('span', { class: 'av big', 'aria-hidden': 'true' }, $('av').textContent), h('span', { class: 'stack g4' }, h('strong', null, channel.title), h('span', { class: 'sm mute' }, 'Signed in to YouTube'),
+      h('span', null, button('switch', 'btn sec sml', 'Switch channel', signInFresh, { disabled: !!off, title: off ? 'You can switch when the work is done' : null })))),
     signNote ? h('p', { class: 'why' }, signNote.title) : null,
-    h('span', null, button('switch', 'btn sec sml', 'Switch channel', signInFresh, { disabled: !!busy && busy.kind !== 'list', title: busy && busy.kind !== 'list' ? 'You can switch when the work is done' : null }))] : []);
+    menuItem('signout', 'out', 'Sign out', 'Your list stays in this Chrome. Sign in again any time.', signOutNow, off),
+    menuItem('revoke', 'no', 'Remove access', 'Google stops this app from using your channel.', removeAccess, off),
+    STORE_BUILD ? null : [h('hr'), menuItem('finish', 'lib', 'Switching to the Web Store version?', 'What to finish here first. Only in this test copy.', finishFirst)],
+    h('div', { class: 'pl sm' }, link('lnk', 'Privacy policy', PRIVACY_URL), ' · ', link('lnk', 'YouTube Terms of Service', TERMS)),
+  ] : []);
 }
 
 function startView() {
@@ -1005,7 +1072,7 @@ function startView() {
     button('signin', 'btn', busy?.kind === 'signin' ? 'Continue in Google’s window…' : 'Sign in to YouTube', signInFresh, { disabled: !!busy, style: 'min-height:56px;min-width:280px;font-size:18px' }),
     restoring && !busy ? h('p', { class: 'sm mute', role: 'status' }, 'Signing you in quietly…') : null,
     h('p', { class: 'sm mute' }, 'Google asks for two permissions: tick both. You choose who can watch: only you, people with the link, or everyone. Deleting moves a video to the Google Photos trash, where you can restore it for 30 days. No ads, no account with us, no server of ours.'),
-    h('p', { class: 'sm mute' }, 'By signing in you agree to the ', link('', 'YouTube Terms of Service', 'https://www.youtube.com/t/terms'), '. ', link('', 'Privacy policy', PRIVACY_URL), '.'),
+    h('p', { class: 'sm mute' }, 'By signing in you agree to the ', link('', 'YouTube Terms of Service', TERMS), '. ', link('', 'Privacy policy', PRIVACY_URL), '.'),
     h('p', { class: 'tm' }, 'Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.'));
 }
 /** Gmail, Drive and Photos share the Google storage; the YouTube channel is outside it. Plain colours, no logos. */
@@ -1162,6 +1229,7 @@ function caption(x) {
   if (p === 'look') return out('ask', 'Please look', 'c-wait');
   if (p === 'lost') return out('fail', 'It did not arrive', 'c-stop');
   if (p === 'moving') return part === undefined ? out('up', 'Waiting', 'mute') : st.s === 'pause' ? out('up', `Paused at ${n}%`, 'c-wait', n) : out('up', `Uploading ${n}%`, 'c-go', n);
+  if (st.s === 'again') return out('info', 'Moved before', 'mute');
   if (p === 'stays') return /shared album/.test(st.ax) ? out('held', 'Stays: shared album', 'mute') : out('info', /another channel/i.test(st.word) ? 'Stays: another channel' : 'Stays: not fully checked', 'mute');
   if (st.s === 'proc') return out('clock', 'YouTube is working', 'c-yt');
   if (st.s === 'sent') return askFailed && !asking ? out('info', 'Not known now', 'mute') : out('clock', 'YouTube is working', 'c-yt');
@@ -1244,7 +1312,7 @@ function pairView(x) {
   const facts = factsOf(x);
   const len = isoLength(video?.contentDetails?.duration);
   const idle = !busy || busy.kind === 'list';
-  const none = st.s === 'ask' ? 'Nobody knows yet whether it is there.' : st.s === 'fail' && !v.record || st.s === 'stop' && !video ? 'It is not on YouTube.' : ['up', 'wait', 'pause', 'lib', 'cut', 'fail'].includes(st.s) ? 'It is not there yet.'
+  const none = st.s === 'again' ? 'Not found on YouTube yet.' : st.s === 'ask' ? 'Nobody knows yet whether it is there.' : st.s === 'fail' && !v.record || st.s === 'stop' && !video ? 'It is not on YouTube.' : ['up', 'wait', 'pause', 'lib', 'cut', 'fail'].includes(st.s) ? 'It is not there yet.'
     : st.s === 'sent' ? 'YouTube has not answered about it.' : st.s === 'proc' ? 'YouTube is still working on it.' : !ytReady(video) ? 'YouTube has nothing to play.' : '';
   const vis = visOf(v);
   const drift = vis?.way === 'less'; // made less private outside this app

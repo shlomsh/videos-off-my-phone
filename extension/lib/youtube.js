@@ -95,11 +95,40 @@ export async function restore(clientId, onProblem = () => {}) {
 
 export async function getToken(clientId, force = false) {
   if (!force && fresh(token) && token.clientId === clientId) return token.value;
+  // Signed out: only a new sign-in by the user may pick a channel.
+  if (!boundChannel) throw new FatalError('Not signed in.');
   const mine = turn;
   const t = await authorize(clientId, false, boundChannel);
   if (mine !== turn) return getToken(clientId);
   await keep(t);
   return t.value;
+}
+
+/** Forgets the sign-in and the channel in this browser. Changes nothing at Google. */
+export async function signOut() {
+  turn += 1; // an unfinished sign-in counts for nothing
+  token = null;
+  boundChannel = null;
+  await chrome.storage.session.remove('token');
+  await chrome.storage.local.remove('channel');
+}
+
+const REVOKE = 'https://oauth2.googleapis.com/revoke';
+/**
+ * Asks Google to withdraw this app's access to the channel. An expired token cannot withdraw
+ * anything, so a refused one is renewed once and sent again. Throws unless Google confirms it.
+ * Forgets nothing by itself.
+ */
+export async function revoke(clientId) {
+  const send = async (force) => {
+    const value = await getToken(clientId, force);
+    try {
+      return await fetch(REVOKE, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: value }), signal: AbortSignal.timeout(20_000) });
+    } catch (e) { throw new FatalError(`Google did not answer (${e?.message ?? e}).`); }
+  };
+  let res = await send(false);
+  if (res.status === 400) res = await send(true);
+  if (!res.ok) throw new FatalError(`Google did not remove the access (HTTP ${res.status}).`);
 }
 
 async function call(clientId, url, init = {}) {

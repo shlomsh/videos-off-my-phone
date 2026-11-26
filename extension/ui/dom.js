@@ -25,6 +25,7 @@ const PATHS = {
   film: 'M4 5h16v14H4z M8 5v14 M16 5v14 M4 9.5h4 M4 14.5h4 M16 9.5h4 M16 14.5h4',
   play: 'M8 5.5v13l11-6.5z',
   full: 'M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5',
+  out: 'M10 4H5v16h5 M14 8l4 4-4 4 M18 12H9',
 };
 
 export function icon(kind, size = 20) {

@@ -5,3 +5,7 @@ export const OPEN_SOURCE = false;
 
 // Where the privacy policy is published.
 export const PRIVACY_URL = 'https://videos-off-my-phone.vercel.app/privacy';
+
+// False in this unpacked copy; tools/pack-store.sh sets it to true in the Web Store zip.
+// Shows "Switching to the Web Store version?" in the account menu only while false.
+export const STORE_BUILD = false;

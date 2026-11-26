@@ -15,8 +15,8 @@ globalThis.chrome = {
       return `https://x.chromiumapp.org/#${h}`;
     },
   },
-  storage: { local: { get: async (k) => ({ [k]: g.store[k] }), set: async (o) => Object.assign(g.store, o) },
-    session: { get: async (k) => ({ [k]: g.session[k] }), set: async (o) => Object.assign(g.session, o) } },
+  storage: { local: { get: async (k) => ({ [k]: g.store[k] }), set: async (o) => Object.assign(g.store, o), remove: async (k) => { delete g.store[k]; } },
+    session: { get: async (k) => ({ [k]: g.session[k] }), set: async (o) => Object.assign(g.session, o), remove: async (k) => { delete g.session[k]; } } },
 };
 globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ items: [{ id: g.signedIn, snippet: { title: `Name ${g.signedIn}` } }] }) });
 
@@ -98,4 +98,70 @@ test('can switch channel, but not while a queue needs the same one', async () =>
   assert.equal(g.store.channel.id, 'UC1');
   assert.equal((await yt.signIn('client')).id, 'UC2');
   assert.equal(g.store.channel.id, 'UC2');
+});
+
+test('sign out forgets the token and the channel, and keeps the records', async () => {
+  reset();
+  const yt = await fresh();
+  await yt.signIn('client');
+  g.store['upload:K'] = { state: 'uploaded', id: 'y' };
+  await yt.signOut();
+  assert.equal(g.session.token, undefined);
+  assert.equal(g.store.channel, undefined);
+  assert.deepEqual(g.store['upload:K'], { state: 'uploaded', id: 'y' });
+  const n = g.flows.length;
+  // Nothing signs in again by itself: not this page, not a new one.
+  await assert.rejects(yt.getToken('client'), /Not signed in/);
+  await assert.rejects(yt.getToken('client', true), /Not signed in/);
+  assert.equal(await (await fresh()).restore('client', () => assert.fail('not a problem')), null);
+  assert.equal(g.flows.length, n, 'Google was not asked');
+  assert.equal((await yt.signIn('client')).id, 'UC1', 'the user can sign in again');
+});
+
+test('a sign-in that was under way when signing out counts for nothing', async () => {
+  reset({ store: { channel: { id: 'UC1', title: 'a' } }, consented: true });
+  const real = chrome.identity.launchWebAuthFlow;
+  let release;
+  chrome.identity.launchWebAuthFlow = async (o) => { await new Promise((r) => { release = r; }); return real(o); };
+  const yt = await fresh();
+  const slow = yt.restore('client');
+  await new Promise((r) => setTimeout(r, 5));
+  await yt.signOut();
+  release();
+  assert.equal(await slow, null);
+  assert.equal(g.store.channel, undefined);
+  assert.equal(g.session.token, undefined);
+  chrome.identity.launchWebAuthFlow = real;
+});
+
+test('remove access asks Google with a fresh token, and says when it did not work', async () => {
+  reset();
+  const yt = await fresh();
+  await yt.signIn('client');
+  const before = globalThis.fetch;
+  const sent = [];
+  let status = 200;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://oauth2.googleapis.com/')) { sent.push({ url: String(url), method: init.method, body: String(init.body), type: init.headers['Content-Type'] }); return { ok: status === 200, status }; }
+    return before(url, init);
+  };
+  try {
+    const n = g.flows.length;
+    await yt.revoke('client');
+    assert.equal(g.flows.length, n, 'the token in hand is used');
+    assert.deepEqual(sent, [{ url: 'https://oauth2.googleapis.com/revoke', method: 'POST', body: 'token=tok', type: 'application/x-www-form-urlencoded' }]);
+    assert.equal(g.store.channel.id, 'UC1', 'it forgets nothing by itself');
+    // Refused (an expired token cannot remove anything): renewed once and sent again.
+    status = 400;
+    sent.length = 0;
+    await assert.rejects(yt.revoke('client'), /did not remove the access \(HTTP 400\)/);
+    assert.equal(sent.length, 2);
+    assert.equal(g.flows.length, n + 1, 'renewed once');
+    status = 503;
+    await assert.rejects(yt.revoke('client'), /HTTP 503/);
+    globalThis.fetch = async (url, init) => { if (String(url).includes('oauth2')) throw new TypeError('Failed to fetch'); return before(url, init); };
+    await assert.rejects(yt.revoke('client'), /Google did not answer/);
+    await yt.signOut();
+    await assert.rejects(yt.revoke('client'), /Not signed in/);
+  } finally { globalThis.fetch = before; }
 });

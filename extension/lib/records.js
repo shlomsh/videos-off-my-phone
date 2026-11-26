@@ -52,6 +52,53 @@ export async function allTrash() {
   return new Map(Object.entries(all).filter(([k]) => k.startsWith('trash:')).map(([k, v]) => [k.slice(6), v]));
 }
 
+// ---- after "Remove access"
+// What is kept of an upload record when the YouTube side is forgotten: the Google Photos
+// side only, so nothing is moved twice. Anything else in a record is dropped.
+const PHOTOS_SIDE = ['size', 'sha256', 'fileName', 'at', 'deletedAt'];
+/**
+ * Upload records without their YouTube details: no video id, channel, upload address or
+ * who-can-watch. Each one touched gets `forgotten: true`. A finished upload stays
+ * 'uploaded' (with no id, so it can never pass the gate); one that was still being sent
+ * becomes 'uncertain', so it is never sent again by itself. Takes and returns key -> record.
+ */
+export function forgetYouTube(records) {
+  const out = new Map();
+  for (const [key, r] of records) {
+    if (!r) continue;
+    const keep = Object.fromEntries(PHOTOS_SIDE.filter((k) => r[k] !== undefined && r[k] !== null).map((k) => [k, r[k]]));
+    out.set(key, { state: r.state === 'uploaded' ? 'uploaded' : 'uncertain', ...keep, forgotten: true });
+  }
+  return out;
+}
+/** Strips the YouTube details from every stored upload record. Marks and trash notes stay. */
+export async function forgetYouTubeStored() {
+  const next = forgetYouTube(await allRecords());
+  await chrome.storage.local.set(Object.fromEntries([...next].map(([k, r]) => [name(k), r])));
+  return next.size;
+}
+/** Forgets every record of what was moved, marked and deleted. The counter is 0 again. */
+export async function forgetAll() {
+  const all = await chrome.storage.local.get(null);
+  const gone = Object.keys(all).filter((k) => /^(upload|mark|trash):/.test(k));
+  if (gone.length) await chrome.storage.local.remove(gone);
+  return gone.length;
+}
+
+/**
+ * What is left to finish before switching to another copy of this app, from the records alone:
+ * done (moved and deleted from Google Photos), left (moved, still in Google Photos),
+ * sending (still uploading, or not known whether it arrived).
+ */
+export function finishCounts(records) {
+  const c = { done: 0, left: 0, sending: 0 };
+  for (const r of records.values()) {
+    if (r?.state === 'uploaded') c[r.deletedAt ? 'done' : 'left'] += 1;
+    else if (r?.state === 'sending' || r?.state === 'uncertain') c.sending += 1;
+  }
+  return c;
+}
+
 /** Only one page may upload or delete at a time. */
 export async function exclusive(task) {
   return navigator.locks.request('video-offload', { ifAvailable: true }, (lock) => {

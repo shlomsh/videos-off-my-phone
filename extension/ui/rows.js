@@ -36,6 +36,8 @@ export function rowState(v, c) {
   if (r.state === 'sending') return out('cut', 'cut', 'Started, not finished', 'YouTube is asked before it is sent again.', 'clock', 'Not yet', 'It may not be on YouTube.');
   if (r.state === 'uncertain') return out('ask', 'ask', 'YouTube cannot say', 'Look for it in YouTube Studio. If it is there, leave it.', 'held', 'Keep it', 'Nobody knows yet whether it arrived.');
 
+  // Uploaded, but its YouTube link was forgotten ("Remove access"): never moved again, never deleted here.
+  if (r.forgotten || !r.id) return out('again', 'info', 'Moved before', 'Not found on YouTube yet.', 'held', 'Keep it', 'Moved before. Not found on YouTube yet.');
   // Uploaded.
   if (!c.channelId) return out('sent', 'clock', 'Uploaded, not confirmed now', 'Sign in to ask YouTube.', 'clock', 'Not yet', 'YouTube has not been asked.');
   if (r.channel !== c.channelId) return out('sent', 'clock', 'On another channel', 'Switch channel to check it.', 'clock', 'Not yet', 'It cannot be checked from this channel.');
@@ -128,10 +130,10 @@ export function factsFor(v, st, d, video) {
   ];
   // Nothing has arrived: say that instead of "waiting for YouTube".
   if (how) for (const f of list) if (f.m === 'wait') Object.assign(f, { b: how, m: how === 'Waiting' ? 'wait' : how === 'Not there' ? 'nothere' : 'unknown' });
-  if (how) { const e = list.find((f) => f.name === 'Every byte'); Object.assign(e, how === 'Waiting' ? { a: 'Waiting', b: 'Waiting', m: 'wait' } : { a: 'Not to the end', b: 'Broke off' }); }
+  if (how && st.s !== 'again') { const e = list.find((f) => f.name === 'Every byte'); Object.assign(e, how === 'Waiting' ? { a: 'Waiting', b: 'Waiting', m: 'wait' } : { a: 'Not to the end', b: 'Broke off' }); }
   return list;
 }
-const lostWord = (st) => (['up', 'wait', 'pause', 'lib'].includes(st.s) ? 'Waiting' : ['fail', 'cut'].includes(st.s) ? 'Not there' : st.s === 'ask' ? 'Not known' : '');
+const lostWord = (st) => (['up', 'wait', 'pause', 'lib'].includes(st.s) ? 'Waiting' : ['fail', 'cut'].includes(st.s) ? 'Not there' : ['ask', 'again'].includes(st.s) ? 'Not known' : '');
 export const differs = (facts) => facts.filter((f) => f.m === 'diff');
 
 /** What the rules say about an uploaded video once both sides have answered: null (nothing known yet), 'ready', or the reasons. */
@@ -148,7 +150,7 @@ export function gate({ record, details, video, channelId }) {
  *   lost     step 2: it did not arrive
  *   moving   step 2: uploading or waiting for it
  *   working  step 2: YouTube, or this app, is still at it
- *   stays    step 2: it stays in Google Photos, with a reason
+ *   stays    step 2: it stays in Google Photos, with a reason (also: moved before, its YouTube link forgotten)
  *   youtube  step 3: every check passed
  * `facts` are the compared facts; `o.ready` says the rules passed; `o.gone` that Google Photos does not have it any more.
  */
@@ -156,6 +158,7 @@ export function placeOf(st, facts, o = {}) {
   if (['lib', 'no'].includes(st.s)) return 'choose';
   if (['wait', 'up', 'pause'].includes(st.s)) return 'moving';
   if (st.s === 'fail') return 'lost';
+  if (st.s === 'again') return 'stays';
   if (st.s === 'cut') return o.queued ? 'moving' : 'lost';
   if (['ask', 'stop'].includes(st.s)) return 'look';
   if (st.s === 'proc') return 'working';

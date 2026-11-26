@@ -90,7 +90,7 @@ $('signin').onclick = () => run('Signing in', async () => {
 
 $('upload').onclick = () => run('Uploading', (signal) => exclusive(async () => {
   const before = await getRecord(key);
-  if (before?.state === 'uploaded' && !confirm(`Already uploaded as ${before.id}. Upload a second copy?`)) return;
+  if (before?.state === 'uploaded' && !confirm(`Already uploaded${before.id ? ` as ${before.id}` : ''}. Upload a second copy?`)) return;
   if (before && before.state !== 'uploaded') throw new Error('An earlier upload was interrupted. Use the list page, which checks YouTube first.');
   const meta = yt.buildVideo({ ...video, privacy: 'private', madeForKids: kids() });
   const type = /\.mov$/i.test(video.fileName) ? 'video/quicktime' : 'video/*';
