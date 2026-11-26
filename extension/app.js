@@ -7,7 +7,7 @@ import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib
 import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
 import { askRemove, askFinish } from './ui/account.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
-import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, phoneWords, initial } from './ui/text.js';
+import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
@@ -81,7 +81,8 @@ let many = null; // a delete of several under way: { n, index, went, stop }
 let batch = null; // how the last delete of several ended: { t, went, n, at, name, why, byYou, out }
 let trashed = null; // the last one that is in the trash: { fileName, size }
 const trashedHere = []; // keys put in the trash in this visit, for the iPhone steps
-const putInTrash = (t) => { trashed = t; if (!trashedHere.includes(t.key)) trashedHere.push(t.key); };
+const trashedInfo = new Map(); // key -> { fileName, size } of each one put in the trash in this visit
+const putInTrash = (t) => { trashed = t; trashedInfo.set(t.key, { fileName: t.fileName, size: t.size }); if (!trashedHere.includes(t.key)) trashedHere.push(t.key); };
 let opened = false; // the user went to look in the trash
 let listNote = '';
 let delPage = 0;
@@ -1589,8 +1590,10 @@ function deleteView(all) {
   if (trashed) {
     const t = trashed;
     const b = batch?.t === t ? batch : null; // the end of a delete of several
-    const several = b && b.went.length > 1;
-    const size = several ? b.went.reduce((n, w) => n + (w.size > 0 ? w.size : 0), 0) : t.size;
+    // One count for everything here: the videos deleted in this visit, as the iPhone steps take them all at once.
+    const here = trashedHere.map((k) => trashedInfo.get(k)).filter(Boolean);
+    const ph = doneWords(here.length ? here : [t]);
+    const { size } = ph;
     const warn = b ? batchLine(b) : '';
     const more = rows.length > 0;
     const mine = () => trashedHere.slice(-8).map((k) => h('span', null, thumbOf(k)));
@@ -1600,12 +1603,10 @@ function deleteView(all) {
     const stepText = (n, ...kids) => h('p', null, h('b', null, String(n)), h('span', null, kids));
     const strong = (t) => h('strong', null, t);
     const out = movedOut();
-    // The phone steps are about every video deleted here in this visit, as the pictures show them.
-    const ph = phoneWords(Math.max(1, trashedHere.length));
     const gain = out.total > 0 ? h('div', { class: 'gain', title: out.words }, ring(34, 18, 5, out.part),
       h('span', { class: 'stack g4' }, h('strong', null, size > 0 ? [h('span', { class: 'c-safe' }, `+${gb(size)}`), ' · '] : null, `${gb(out.total)} moved out so far`),
         h('span', { class: 'sm mute' }, [`${count(out.n)}.`, out.next ? `${gb(out.next * 1e9 - out.total)} more to ${out.next} GB.` : ''].filter(Boolean).join(' ')))) : null;
-    return [main('done', 'aft', h('div', { class: 'ttl' }, h('span', { class: 'c-ink', style: 'align-self:center' }, mark('check', 30)), h('h1', null, several ? `${b.went.length} are in the Google Photos trash.` : 'It is in the Google Photos trash.'), h('span', { class: 'mute' }, several ? `${count(b.went.length)}, ${gb(size)}.` : `${t.fileName}, ${gb(t.size)}.`), gain),
+    return [main('done', 'aft', h('div', { class: 'ttl' }, h('span', { class: 'c-ink', style: 'align-self:center' }, mark('check', 30)), h('h1', null, ph.title), h('span', { class: 'mute' }, ph.sub), gain),
       h('section', { class: `ph3${warn ? ' tight' : ''}`, 'aria-labelledby': 'ph3h' }, warn ? h('div', { class: 'vwarn', role: 'status' }, mark('info', 20), h('span', null, warn)) : null, h('h2', { id: 'ph3h' }, ph.head), h('ol', null,
         h('li', null, phone(h('div', { class: 'fbar' }, h('span', { class: 'fq' }, 'Search'), h('span', { class: 'fav' }, initial(channel?.title), tap())), h('div', { class: 'fgrid' }, COLORS.map((c) => h('span', { style: `--c:${c}` })))),
           stepText(1, 'Open ', strong('Google Photos'), ' on your iPhone. Tap your picture, top right.')),

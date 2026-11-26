@@ -38,6 +38,21 @@ export function phoneWords(n) {
     head: many ? 'Now remove them from your iPhone' : 'Now remove it from your iPhone',
   };
 }
+/**
+ * The done page's words, all by one count: the videos deleted in this visit (v52), as the iPhone steps
+ * remove them all at once. list: [{ fileName, size }], oldest first. size is what the "+" shows.
+ */
+export function doneWords(list) {
+  const n = Math.max(1, list.length);
+  const last = list[list.length - 1] ?? {};
+  const total = list.reduce((t, x) => t + (x.size > 0 ? x.size : 0), 0);
+  return {
+    ...phoneWords(n),
+    title: n > 1 ? `${n} are in the Google Photos trash.` : 'It is in the Google Photos trash.',
+    sub: n > 1 ? `${count(n)}, ${gb(total)}.` : `${last.fileName}, ${gb(last.size)}.`,
+    size: n > 1 ? total : last.size,
+  };
+}
 /** The first letter of the channel's name, as in the app's own circle; empty when not known. */
 export const initial = (title) => (typeof title === 'string' ? [...title.trim()][0]?.toUpperCase() ?? '' : '');
 
