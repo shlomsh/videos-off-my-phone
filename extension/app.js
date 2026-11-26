@@ -1245,8 +1245,12 @@ function watchView(x, list) {
 // ---- step 2
 /** Ticked and started, and waiting for "Continue". */
 const waiting = (all) => (run ? [] : moveRows(all).filter((x) => x.p === 'moving' && sel.has(x.v.key) && canCopy(x.st.s)));
-/** Uploaded, and YouTube is still at it: in step 2, with a live line and a bar on its picture. */
-const withYouTube = (x) => x.p === 'working' && (x.st.s === 'proc' || x.st.s === 'sent' && !(askFailed && !asking));
+/**
+ * Uploaded, and YouTube is still at it: in step 2, with a live line and a bar on its picture.
+ * Not asked yet counts only for what was uploaded in this visit: before YouTube's first answer
+ * every moved video looks the same, also ones finished long ago.
+ */
+const withYouTube = (x) => x.p === 'working' && (x.st.s === 'proc' || x.st.s === 'sent' && !(askFailed && !asking) && cameNew.has(x.v.key));
 /** How far YouTube is with it: { pct, leftMs } as YouTube said (never lower than before), or null. */
 const ytAt = (x) => (x.v.record?.id && best.get(x.v.record.id)) || null;
 /** The one state under a picture. */
@@ -1266,7 +1270,7 @@ function caption(x) {
     return at ? out('clock', 'YouTube is working', 'c-yt', at.pct, { sub: progressWords(at) })
       : out('clock', 'YouTube is working', 'c-yt', 100, { sub: agoWords(v.record?.at), striped: true });
   }
-  if (st.s === 'sent') return out('info', 'Not known now', 'mute');
+  if (st.s === 'sent') return askFailed && !asking ? out('info', 'Not known now', 'mute') : out('clock', 'YouTube is working', 'c-yt');
   return details.has(v.key) && !details.get(v.key) && !loading ? out('info', 'Not known now', 'mute') : out('clock', 'Comparing…', 'mute');
 }
 /** The next step: the videos that can be deleted now, or choosing more. */
