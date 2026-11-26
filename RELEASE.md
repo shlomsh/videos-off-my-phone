@@ -60,9 +60,15 @@ Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release
 6. Apply for Google verification only to go past 100 people or end the weekly sign-in (domain cost, demo video, review time).
 7. Don't ask for more YouTube quota unless daily uploads come close to 100.
 
+## Name and message
+- [x] Name chosen: **Videos Off My Phone**. GitHub repo renamed to `videos-off-my-phone`. Research is in [docs/naming.md](docs/naming.md); the draft listing is in [docs/listing.md](docs/listing.md).
+- [ ] Rename it inside the app (manifest, page titles, texts), after the current build.
+- [ ] Say the point on the start page and in the listing: YouTube storage doesn't count toward your Google storage. Free and open source. (Design session.)
+- [ ] **Open source:** make the repo public, add a license, and keep the personal email out of the public history. Remove `UX_PROMPT.md` (an old internal brief with a local path) first.
+
 ## Housekeeping
 - [x] Put the folder in git, with a private GitHub repo.
-- [ ] Remove "(proof of concept)" from the name.
+- [ ] Remove "(proof of concept)" from the name (part of the rename).
 - [ ] Remove the old probe file and the `old/` folders (kept out of git).
 
 ## Rules that stay
