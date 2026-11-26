@@ -38,6 +38,8 @@ let pairing = null; // the two copies shown large, in step 2 or 3
 let watching = null; // the one video shown large, in step 1 or 3
 let said = null; // what the last answer did: { text, was, mini }, with Undo
 let stamp = null; // the second after an answer in the player: { key, x, list, kind, next, timer }
+let calmUntil = 0; // just after the moment, presses in the player are ignored, so a late second press never answers for the next video
+const CALM = 500;
 let sentBar = null; // the dark bar after "Send N to Delete" in the grid: { keys, size, seq }
 let plus = null; // the "+N" on the Delete pill, until the next press or Undo: { n, seq }
 let seq = 0;
@@ -1280,6 +1282,7 @@ function watch(key) {
 function turnTo(by) {
   if (step !== 1) return;
   if (stamp) return endStamp(); // the arrows only end the moment
+  if (Date.now() < calmUntil) return;
   const list = pile();
   const at = list.findIndex((x) => x.v.key === watching);
   const next = at < 0 ? null : list[at + by];
@@ -1301,6 +1304,7 @@ const MOMENT = 1000; // how long the layer shows after an answer, before the nex
 function answer(kind, e) {
   if (e.detail > 1) return; // a double click would answer for the next video too
   if (stamp) return endStamp(); // a press during the moment only ends it
+  if (Date.now() < calmUntil) return; // the next video has only just come
   const key = watching;
   const list = pile();
   const at = list.findIndex((x) => x.v.key === key);
@@ -1331,6 +1335,7 @@ function endStamp() {
   const { next, list, key } = stamp;
   dropStamp();
   if (step !== 1 || watching !== key) return render(); // the page moved on meanwhile
+  calmUntil = Date.now() + CALM;
   const now = pile();
   const keep = said;
   const f = document.activeElement?.dataset?.f; // where the keyboard is: the answer just given, unless the user moved on
