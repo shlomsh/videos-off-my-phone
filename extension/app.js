@@ -1043,6 +1043,13 @@ function paint() {
   paintBar(all);
   paintTitle(all);
   draw($('view'), !channel ? startView() : want && !run ? pausedCheck() : step === 1 ? chooseView(all) : step === 2 ? moveView(all) : deleteView(all));
+  keepAboveFoot();
+}
+/** On a narrow window the footer sticks to the bottom: what gets the keyboard is scrolled into view above it, not under it. */
+function keepAboveFoot() {
+  const f = $('view').querySelector(':scope > .foot');
+  const pad = f && getComputedStyle(f).position === 'sticky' ? `${Math.ceil(f.getBoundingClientRect().height) + 8}px` : '';
+  if (document.documentElement.style.scrollPaddingBottom !== pad) document.documentElement.style.scrollPaddingBottom = pad;
 }
 
 const main = (key, cls, ...kids) => h('main', { class: `step ${['watch', 's2', 'aft'].includes(cls) ? cls : ''}`.trim(), id: 'main', tabindex: '-1', 'data-key': `m-${key}`, 'data-deep': true, style: cls === 'one' ? 'grid-template-rows:minmax(0,1fr)' : null }, kids);
