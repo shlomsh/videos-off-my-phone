@@ -83,10 +83,11 @@ Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release
 - [x] Renamed inside the app, with the new start page (v38) and icon (v39), in 0.11.0.
 - [ ] Say the point on the start page and in the listing: YouTube storage doesn't count toward your Google storage. Free and open source. (Design session.)
 - [ ] **Open source** (your answers, 26 Nov 2026):
-  - Make the repo public after the current build. Ask once more before switching.
-  - License: **MIT**.
-  - The author is your GitHub noreply address from now on. Once the branches are merged, rewrite the old commits to it too, before the repo goes public.
-  - Remove `UX_PROMPT.md` (an old internal brief with a local path) and write an open-source README first.
+  - [ ] Make the repo public. Ask once more before switching. (Everything below is ready.)
+  - [x] License: **MIT** (`LICENSE`).
+  - [x] Every commit's author is your GitHub noreply address. History rewritten 26 Nov 2026; the merged branches v35, v36 and v38 were deleted from GitHub.
+  - [x] `UX_PROMPT.md` removed from the repo and from its history. Open-source README written, with the client ID note for forks.
+  - [ ] Set `OPEN_SOURCE = true` in `extension/config.js`, in 0.12.0.
 
 ## Housekeeping
 - [x] Put the folder in git, with a private GitHub repo.
