@@ -196,7 +196,7 @@ test('the code can only move one video to the trash, from one place, and cannot 
   assert.equal(all.match(/XwAOJf/g).length, 1);
   assert.match(all, /\['XwAOJf', \[null, 1, \[contentId\], 3\]\]/);
   assert.equal(all.match(/trashCall\(/g).length, 1); // where it is sent
-  assert.equal(all.match(/trashOne\(/g).length, 2); // defined, and behind the one button
+  assert.equal(all.match(/trashOne\(/g).length, 3); // defined, behind the one button, and in the loop for several
   assert.equal(all.match(/moveToTrash\(/g).length, 3); // defined, handed over, and the one use
 });
 

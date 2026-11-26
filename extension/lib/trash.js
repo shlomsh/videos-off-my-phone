@@ -101,3 +101,29 @@ export async function trashOne({ key, fileName, size, duration, kind }, d, onSta
   }
   return { state: 'unclear', extra: 0, problem };
 }
+
+/**
+ * Several confirmed videos, strictly one by one, each through trashOne with all its rules.
+ * It stops at the first refusal, the first result that is not a clean 'trashed', or when
+ * stopAsked() is true between two videos. A failed one is never skipped.
+ * onEach(what, outcome, index) is awaited after each one; outcome is trashOne's result, or
+ * { state: 'refused', error } when trashOne threw (then nothing was sent for it).
+ * Returns { went, at, why, outcome }: what is in the trash, the index it stopped at (null when
+ * all went), and why: 'asked', 'refused', 'unclear' or 'extra'.
+ */
+export async function trashSeveral(list, d, { stopAsked = () => false, onStart = () => {}, onEach = () => {} } = {}) {
+  const went = [];
+  for (let i = 0; i < list.length; i++) {
+    if (i && stopAsked()) return { went, at: i, why: 'asked', outcome: null };
+    const what = list[i];
+    await onStart(what, i);
+    let outcome;
+    try { outcome = await trashOne(what, d); } catch (error) { outcome = { state: 'refused', error }; }
+    await onEach(what, outcome, i);
+    if (outcome.state === 'trashed') went.push(what);
+    if (outcome.state !== 'trashed' || outcome.extra > 0) {
+      return { went, at: i, why: outcome.state === 'trashed' ? 'extra' : outcome.state === 'refused' ? 'refused' : 'unclear', outcome };
+    }
+  }
+  return { went, at: null, why: null, outcome: null };
+}

@@ -102,12 +102,14 @@ export function ask(title, text, yes, no = 'Cancel') {
 }
 
 /** Asks about one video, shown with its picture. Cancel has the focus; Esc and a click outside cancel. */
-export function askDelete(title, { pic, name, facts, copy, safe = false }, text, yes = 'Delete') {
+export const askDelete = (title, one, text, yes = 'Delete') => askDeleteMany(title, [one], text, yes);
+/** The same, for several videos: each with its picture and its own line. */
+export function askDeleteMany(title, list, text, yes = 'Delete') {
   return new Promise((resolve) => {
     const no = h('button', { type: 'button', class: 'btn sec', autofocus: true, onclick: () => d.close('no') }, 'Cancel');
     const d = h('dialog', { class: 'dlg', 'aria-labelledby': 'dlg-title' }, h('div', { class: 'in' },
       h('h2', { id: 'dlg-title' }, title),
-      h('ul', null, h('li', null, h('span', { class: 'pt2' }, pic), h('span', { class: 'stack g4' }, h('strong', null, name), h('span', null, facts), h('span', { class: `line1 ${safe ? 'c-safe' : 'c-stop'}` }, icon(safe ? 'check' : 'stop', 16), copy)))),
+      h('ul', null, list.map(({ pic, name, facts, copy, safe = false }) => h('li', null, h('span', { class: 'pt2' }, pic), h('span', { class: 'stack g4' }, h('strong', null, name), h('span', null, facts), h('span', { class: `line1 ${safe ? 'c-safe' : 'c-stop'}` }, icon(safe ? 'check' : 'stop', 16), copy))))),
       h('p', null, text),
       h('div', { class: 'bt' }, no, h('button', { type: 'button', class: 'btn bare', onclick: () => d.close('yes') }, yes))));
     d.onclick = (e) => { if (e.target === d) d.close('no'); };
