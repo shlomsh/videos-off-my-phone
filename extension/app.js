@@ -1631,7 +1631,7 @@ addEventListener('picture-failed', render);
 addEventListener('resize', render);
 addEventListener('keydown', (e) => {
   // Right after an answer in the player, any key only ends the moment (Enter or Space do not answer again).
-  if (stamp && !['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key) && !document.querySelector('dialog[open],:popover-open')) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) endStamp(); return; }
+  if (stamp && !e.metaKey && !e.ctrlKey && !e.altKey && !['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key) && !document.querySelector('dialog[open],:popover-open')) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) endStamp(); return; }
   if (!(watching || pairing) || e.altKey || e.metaKey || e.ctrlKey || document.fullscreenElement || /^(INPUT|SELECT)$/.test(e.target.tagName) || document.querySelector('dialog[open],:popover-open')) return;
   const act = { Escape: leaveWatch, ArrowLeft: () => turnTo(-1), ArrowRight: () => turnTo(1) }[e.key];
   if (act && (watching || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); return act(); } // also after a click on the player, which would seek
