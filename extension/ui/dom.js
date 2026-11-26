@@ -117,7 +117,10 @@ export function askDeleteMany(title, list, text, yes = 'Delete') {
     d.onclose = () => { resolve(d.returnValue === 'yes'); d.remove(); };
     document.querySelector('.ge').append(d);
     d.showModal();
-    no.focus();
+    // Cancel has the keyboard, but the question opens at its top: on a small window Cancel is far below.
+    no.focus({ preventScroll: true });
+    d.scrollTop = 0;
+    requestAnimationFrame(() => { d.scrollTop = 0; });
   });
 }
 
