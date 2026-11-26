@@ -8,44 +8,65 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="brand" href="./"><img src="icon.svg" width="32" height="32" alt="">Videos Off My Phone</a><nav><a href="./">Home</a><a href="REPO_URL"><mark class="fill">Source code</mark></a></nav></div></header>
+<header class="top"><div class="wrap"><a class="brand" href="./"><img src="icon.svg" width="32" height="32" alt="">Videos Off My Phone</a><nav><a href="./">Home</a><a href="https://github.com/shlomsh/videos-off-my-phone">Source code</a></nav></div></header>
 <main class="doc">
 <h1>Privacy policy</h1>
-<p class="note">Effective <mark class="fill">[date]</mark>. Videos Off My Phone is a free, open source Chrome extension made by <mark class="fill">[developer name]</mark>. Contact: <mark class="fill">[contact email]</mark>.</p>
+<p class="note">Effective 26 November 2026. Videos Off My Phone is a free, open source Chrome extension made by <mark class="fill">[developer name]</mark>, an independent developer. It is not made or endorsed by Google. Contact: <a href="https://github.com/shlomsh/videos-off-my-phone/issues">open an issue on GitHub</a>.</p>
 
 <h2>In short</h2>
-<p>The app runs in your browser. It has no server, no account and no analytics. Your videos go straight from Google Photos to your own YouTube channel. Nothing is sent to us, sold or shared.</p>
+<p>The app runs only in your own Chrome. It has no server, no account with us, no ads, no analytics and no tracking. Your videos go straight from Google Photos to your own YouTube channel through your browser. Nothing is sent to us, sold or shared. We never receive, see or store any of it.</p>
+
+<h2>Google Photos: how the app reaches it</h2>
+<p>Google Photos has no public interface for this. The app uses <strong>the same internal web calls the Google Photos website itself uses</strong>, from your own open, signed-in Google Photos tab, with your existing session there. It never sees, asks for or stores your Google password or cookies, and never sends them anywhere. Google can change these calls at any time; if they change, the app stops and deletes nothing.</p>
 
 <h2>What the app accesses, and why</h2>
 <table>
-<tr><th>What</th><th>Why</th></tr>
-<tr><td>Your signed-in Google Photos page (photos.google.com), in your own browser tab</td><td>To list your videos and their sizes, to read a video file so it can be uploaded, and to move an original to the Google Photos trash after you confirm it.</td></tr>
-<tr><td>YouTube, with your permission: upload videos (<code>youtube.upload</code>) and view your YouTube account (<code>youtube.readonly</code>)</td><td>To upload the videos you choose to your channel, with the visibility you choose, and to read their details back so the app can check that each copy is complete.</td></tr>
+<tr><th>What</th><th>From</th><th>Why</th></tr>
+<tr><td>Your list of videos: name, size, date, length, quality and preview picture</td><td>Google Photos, in your tab</td><td>To show your biggest videos so you can choose.</td></tr>
+<tr><td>Whether a video is in a shared album</td><td>Google Photos</td><td>Videos in shared albums are never deleted.</td></tr>
+<tr><td>The original video file</td><td>Google Photos</td><td>Streamed straight to YouTube. It is never saved to disk.</td></tr>
+<tr><td>The Google Photos trash list</td><td>Google Photos</td><td>To confirm that a delete really happened.</td></tr>
+<tr><td>Your YouTube channel name and id</td><td>YouTube, with your permission (<code>youtube.readonly</code>)</td><td>To show which channel you are signed in to, and to make sure every upload goes to that same channel.</td></tr>
+<tr><td>Details of the videos the app uploaded: visibility, size, resolution, processing state, recording day</td><td>YouTube (<code>youtube.readonly</code>)</td><td>To check the copy is complete before the app offers to delete the original.</td></tr>
 </table>
-<p>The app does not read your photos, messages, contacts or anything else. It never deletes anything on YouTube.</p>
+<p>The app does not read your photos, messages, contacts or anything else.</p>
+
+<h2>What the app changes</h2>
+<ul>
+<li><strong>On YouTube</strong> (<code>youtube.upload</code>): it uploads the videos you choose, with the file name as the title, the recording day, and the visibility you choose (Private, Unlisted or Public). It marks them “not made for kids”; you can change that in YouTube Studio. It cannot delete or change anything on YouTube.</li>
+<li><strong>In Google Photos</strong>: only after you confirm a video by name, it moves that video to the Google Photos trash, where you can restore it for 30 days. It never empties the trash and never makes or changes albums.</li>
+</ul>
 
 <h2>What is stored, and where</h2>
 <p>Only on your computer, in Chrome’s storage for this extension:</p>
 <ul>
-<li>For each video you moved or deleted: its Google Photos item id, its size and date, a checksum of the file, the YouTube video id, the visibility you chose, and the result of each check and delete.</li>
-<li>The name of your YouTube channel.</li>
-<li>The YouTube sign-in token, kept in Chrome’s memory for the session only.</li>
+<li>For each video you moved: its Google Photos item id, file name and size, a SHA-256 checksum of the file, the YouTube video id and channel id, the visibility you chose, when it happened, and the result of each check.</li>
+<li>For each video you deleted: its Google Photos id, file name and size, and whether the delete was confirmed from the trash.</li>
+<li>The videos you marked to delete without a copy, until you act on them.</li>
+<li>The name and id of your YouTube channel.</li>
+<li>The YouTube sign-in token, which lasts about an hour, kept in Chrome’s memory for the session only and never on disk.</li>
 </ul>
-<p>Removing the extension deletes all of this. Video files are never saved to disk; they pass through your browser while uploading.</p>
+<p>These records stop a video being uploaded twice or deleted twice. The app uses no cookies of its own and no third-party code.</p>
 
 <h2>Sharing</h2>
-<p>We do not collect, sell, rent or share your data. There are no ads and no tracking. Data moves only between your browser, Google Photos and YouTube, as you direct.</p>
+<p>We do not collect, sell, rent or share your data, because we receive none. There are no ads and no tracking. Data moves only between your browser, Google Photos and YouTube, as you direct.</p>
 
-<h2>Google API Services</h2>
-<p>Videos Off My Phone’s use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+<h2>Google API Services and Limited Use</h2>
+<p>Videos Off My Phone’s use of information received from Google APIs will adhere to the <a href="https://developer.chrome.com/docs/webstore/program-policies/limited-use">Chrome Web Store User Data Policy</a> and the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Data is used only to move, check and delete the videos you choose. It is never used for ads and never read by a person.</p>
 <p>This app uses YouTube API Services. By using it you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. Google’s handling of your data is described in the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</p>
-<p>You can remove the app’s access to your Google Account at any time on <a href="https://myaccount.google.com/permissions">Google’s third-party access page</a>.</p>
+
+<h2>Removing access and deleting your data</h2>
+<ul>
+<li>Remove the app’s access to your Google Account at any time on <a href="https://myaccount.google.com/permissions">Google’s third-party access page</a>. After that it can no longer upload or read anything on YouTube.</li>
+<li>Remove the extension in Chrome (<code>chrome://extensions</code>, then Remove) to delete everything it stored on your computer at once.</li>
+<li>Neither touches your videos on YouTube or in Google Photos. Manage those in YouTube Studio and Google Photos.</li>
+</ul>
 
 <h2>Children</h2>
 <p>The app is not directed at children under 13.</p>
 
 <h2>Changes</h2>
-<p>Changes to this policy are posted on this page, with a new effective date. The full history is in the public source code.</p>
+<p>Changes to this policy are posted on this page, with a new effective date. If the app ever needs to use your data in a new way, it will ask you first. The full history is in the public source code.</p>
 </main>
 <footer><div class="wrap"><span>Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.</span><a href="./">Home</a></div></footer>
 </body>

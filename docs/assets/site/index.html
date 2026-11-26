@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="brand" href="./"><img src="icon.svg" width="32" height="32" alt="">Videos Off My Phone</a><nav><a href="privacy.html">Privacy</a><a href="REPO_URL"><mark class="fill">Source code</mark></a></nav></div></header>
+<header class="top"><div class="wrap"><a class="brand" href="./"><img src="icon.svg" width="32" height="32" alt="">Videos Off My Phone</a><nav><a href="privacy.html">Privacy</a><a href="https://github.com/shlomsh/videos-off-my-phone">Source code</a></nav></div></header>
 <main>
 <div class="hero wrap">
 <span class="chip">Free and open source</span>
@@ -20,7 +20,7 @@
 <div class="qbox qyt">Your YouTube channel<strong>Not part of it</strong></div>
 </div>
 <p class="lead">Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. It checks every copy, then deletes the originals after your yes. Your phone and your Google storage get the space back.</p>
-<div class="cta"><a class="btn" href="STORE_URL"><mark class="fill" style="background:none;padding:0">Add to Chrome</mark></a><a class="btn sec" href="REPO_URL">See the source code</a></div>
+<div class="cta"><a class="btn" href="STORE_URL"><mark class="fill" style="background:none;padding:0">Add to Chrome</mark></a><a class="btn sec" href="https://github.com/shlomsh/videos-off-my-phone">See the source code</a></div>
 <p class="note">For Chrome on a computer. No ads, no account with us, no server of ours.</p>
 </div>
 
@@ -39,8 +39,20 @@
 <div class="card"><h3>Google Photos</h3><p>It works in your own signed-in Google Photos tab: it lists your videos and their sizes, reads the video files to send them to YouTube, and moves an original to the trash only after you confirm it.</p></div>
 <div class="card"><h3>YouTube</h3><p>With your permission it uploads videos to your channel and reads their details back, to check that each copy is complete. It never deletes anything on YouTube.</p></div>
 <div class="card"><h3>Your data stays with you</h3><p>Videos go straight from Google to Google through your browser. The app keeps its notes on your computer only. There is no server of ours, no analytics and no ads.</p></div>
-<div class="card"><h3>Open source</h3><p>Every line is public, so anyone can check what it does. <a href="REPO_URL"><mark class="fill">Read the code</mark></a>.</p></div>
+<div class="card"><h3>Open source</h3><p>Every line is public, so anyone can check what it does. <a href="https://github.com/shlomsh/videos-off-my-phone">Read the code</a>.</p></div>
 </div>
+</div></section>
+
+<section><div class="wrap">
+<h2>Google sign-in, and Google Photos</h2>
+<p>The app asks Google for two YouTube permissions:</p>
+<ul>
+<li><strong>Manage your YouTube videos</strong> (<code>youtube.upload</code>): to upload the videos you choose.</li>
+<li><strong>View your YouTube account</strong> (<code>youtube.readonly</code>): to confirm your channel, and to check each uploaded copy before anything is deleted.</li>
+</ul>
+<p>Google Photos has no public interface for this, so the app uses the same internal web calls the Google Photos website uses, in your own open Google Photos tab, with your existing session there. It never sees your password. If Google changes those calls, the app stops and deletes nothing.</p>
+<p>The app uses YouTube API Services: by using it you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. See also the <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and our <a href="privacy.html">privacy policy</a>. You can remove the app’s access at any time on <a href="https://myaccount.google.com/permissions">Google’s third-party access page</a>.</p>
+<p>Videos Off My Phone’s use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy and the Google API Services User Data Policy, including the Limited Use requirements.</p>
 </div></section>
 
 <section><div class="wrap">

@@ -43,3 +43,4 @@ mark.fill{background:var(--fill);color:inherit;padding:0 4px;border-radius:4px}
 .doc p,.doc li{color:var(--ink)}
 .doc table{border-collapse:collapse;width:100%;font-size:15px}.doc th,.doc td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}.doc th{background:var(--soft)}
 @media (max-width:700px){.quota{grid-template-columns:1fr}.arr{transform:rotate(90deg);justify-self:center}.steps,.grid2{grid-template-columns:1fr}nav{width:100%}}
+.doc td,.doc th{overflow-wrap:anywhere}

@@ -5,6 +5,8 @@
 2. Run end-to-end tests in your own Chrome, to see it works as expected. (Here, now that 0.11.0 is installed.)
 3. Bug fixing and polish.
 
+Store draft created (26 Nov 2026). Item ID `imkmnploomooalicacgniiicblmfclka`; its sign-in redirect is `https://imkmnploomooalicacgniiicblmfclka.chromiumapp.org/`. The store refuses a manifest `key`, so build uploads with `npm run pack`. The local copy keeps its old ID until you choose how records carry over (backup file, or finish first).
+
 Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
 
 Last updated: 26 Nov 2026. Installed version: 0.11.0 (tested on stand-ins only; not yet used on the real account).
