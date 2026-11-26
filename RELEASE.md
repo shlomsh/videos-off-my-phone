@@ -43,7 +43,7 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 - [x] Whether people other than you should be able to sign in: yes, everyone (26 Nov 2026).
 
 ## Not proven on the real account yet
-- [ ] Deleting a **no-copy** video. Only an On YouTube one has been done (IMG_4959.MOV; and IMG_3916.MOV, Unlisted, on 26 Nov 2026 with 0.12.0).
+- [x] Deleting a **no-copy** video, and **several at once**: proven on 26 Nov 2026 with 0.12.1 (IMG_4776.MOV Unlisted with a copy + IMG_4972.MOV no copy, one yes, one by one; counter 910 → 985 MB).
 - Versions are tagged on GitHub from 0.12.0 (`v0.12.0`, `v0.12.1`). The app shows its version in the account menu and on the start page.
 - [x] An **Unlisted** upload stays Unlisted and plays inside the app. Proven on the real account on 26 Nov 2026 with 0.11.2/0.12.0 (IMG_3916.MOV, 28 MB): every fact the same, Seen by "As you chose".
 - [ ] **Whether the Google Photos trash still counts toward storage.** Google's Help pages don't say. Until it is known, the counter must not say the space is free now. To find out, compare the storage figure before and after a large delete.
