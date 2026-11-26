@@ -1308,17 +1308,20 @@ function answer(kind, e) {
   const was = { key, tick: sel.has(key) };
   const back = kind === 'copy' && was.tick; // given twice, it is taken back
   decide(key, back ? null : kind);
-  const next = back ? key : list[at + 1]?.v.key ?? (kind === 'copy' ? key : list[at - 1]?.v.key ?? null);
+  // The next one, never one before it: a ticked one stays, one sent to Delete at the end closes the player.
+  const next = back ? key : list[at + 1]?.v.key ?? (kind === 'copy' ? key : null);
+  const last = !back && at === list.length - 1;
   const facts = [gb(x.v.size), Number.isFinite(x.v.timestamp) ? day(x.v.timestamp) : ''].filter(Boolean).join(', ');
   const text = back ? 'Not ticked any more.' : kind === 'copy' ? `Ticked to move: ${facts}. It moves when you press Move ${picked().move.length} to YouTube.`
     : `Sent to Delete with no YouTube copy: ${facts}. Nothing is deleted until you say yes there.`;
-  said = { text: !back && next === key ? `${text} That was the last one.` : text, was, mini: back ? null : key };
+  said = { text: last ? `${text} That was the last one.` : text, was, mini: back ? null : key };
   seq += 1;
   plus = kind === 'bare' ? { n: 1, seq } : null;
-  if (next && next !== key) {
-    // For a second the video stays, under a layer that says what happened; then the next one.
+  if (next !== key) {
+    // For a second the video stays, under a layer that says what happened; then the next one, or the grid.
     stamp = { key, x, list, kind, next, timer: setTimeout(endStamp, MOMENT) };
-  } else if (next !== key) watch(next);
+    if (next === null) say(said.text); // the player closes, so it is said where it stays on the page
+  }
   render();
 }
 /** The moment is over (or skipped): on to the next video, keeping the note with its Undo. */
@@ -1330,7 +1333,7 @@ function endStamp() {
   const now = pile();
   const keep = said;
   const f = document.activeElement?.dataset?.f; // where the keyboard is: the answer just given, unless the user moved on
-  const to = now.find((x) => x.v.key === next) ?? now[Math.min(Math.max(0, list.findIndex((x) => x.v.key === key)), now.length - 1)];
+  const to = next === null ? null : now.find((x) => x.v.key === next) ?? now[Math.min(Math.max(0, list.findIndex((x) => x.v.key === key)), now.length - 1)];
   if (to) { watch(to.v.key); said = keep; render(); if (f) focusOn(f); } else leaveWatch();
 }
 function dropStamp() {
@@ -1375,12 +1378,12 @@ function watchView(x, list) {
   const reply = (kind, f, cls, text, off, pressed) => h('button', { type: 'button', class: cls, 'data-f': f, 'aria-pressed': pressed, 'aria-describedby': 'why', disabled: off, onclick: (e) => (step === 3 ? answer3(kind) : answer(kind, e)) }, text);
   const screen = photosSide(v, false, null);
   // A press on the layer, or any key, ends the moment early. The note below says the same in words.
-  if (held) screen.append(h('div', { class: 'stamp', 'data-key': `stamp-${v.key}`, 'aria-hidden': 'true', onclick: endStamp }, h('span', { class: 'sk' }, mark('check', 30)), h('strong', null, held.kind === 'bare' ? 'Sent to Delete, no YouTube copy' : 'Ticked to move'), h('span', null, 'Next video in a moment')));
+  if (held) screen.append(h('div', { class: 'stamp', 'data-key': `stamp-${v.key}`, 'aria-hidden': 'true', onclick: endStamp }, h('span', { class: 'sk' }, mark('check', 30)), h('strong', null, held.kind === 'bare' ? 'Sent to Delete, no YouTube copy' : 'Ticked to move'), h('span', null, held.next === null ? 'That was the last one.' : 'Next video in a moment')));
   return [
     main('watch', 'watch', h('div', { class: 'ttl' }, h('h1', null, 'What should happen to this video?'), h('span', { class: 'mute', title: v.fileName ?? null }, three ? `${facts}. It has no YouTube copy.` : `${facts}. Video ${at + 1} of ${list.length}`), shut()),
       h('div', { class: 'film', 'data-key': 'film', 'data-deep': true }, nav('wprev', 'Previous video', 'left', -1, three || at === 0), screen, nav('wnext', 'Next video', 'right', 1, three || at >= list.length - 1))),
     // Keyed, so the note stays one live region while the videos change.
-    h('footer', { class: 'foot ask3', 'data-key': 'wfoot', 'data-deep': true }, h('span', { class: 'mute sm side1', id: 'why', role: 'status', 'data-key': 'side1', 'data-deep': true }, line),
+    h('footer', { class: 'foot ask3', 'data-key': 'wfoot', 'data-deep': true }, h('span', { class: 'mute sm side1', id: 'why', role: held?.next === null ? null : 'status', 'data-key': 'side1', 'data-deep': true }, line), // said once
       reply('bare', 'wbare', 'btn sec', 'Skip YouTube, send to Delete', false), reply('copy', 'wtick', 'btn', 'Move to YouTube', !can, three ? null : String(on))),
   ];
 }
