@@ -341,4 +341,4 @@ body{margin:0}
 @container (max-width:900px){.ge .won{margin-left:auto;margin-right:0}.ge .bar{column-gap:10px}}
 .ge .ph3 .mine{flex-wrap:wrap;max-width:100%;row-gap:6px}.ge .ph3 .mine .pt3{width:56px;height:32px}
 .ge .ph3 .mine>.sm{flex-basis:100%}.ge .ph3 .vwarn{margin:0}
-.ge .ph3 .vwarn{justify-self:stretch;padding:8px 14px}.ge .ph3.tight .fone{--fw:min(112px,9cqw)}
+.ge .ph3 .vwarn{justify-self:stretch;padding:8px 14px}@container (min-width:901px){.ge .ph3.tight .fone{--fw:min(112px,9cqw)}}
