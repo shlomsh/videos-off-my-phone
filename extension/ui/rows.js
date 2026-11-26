@@ -168,3 +168,20 @@ export function placeOf(st, facts, o = {}) {
   if (st.s !== 'yt' || o.gone || !o.ready) return 'working';
   return 'youtube';
 }
+
+/**
+ * Where a video is shown: as placeOf says, except that after Stop a video still ticked and queued
+ * waits to continue in Move to YouTube. It is then never in Choose: no tick there, no Send to Delete,
+ * no player. o: { queued, ticked, running (in the queue that runs now), marked (sent to Delete) }
+ */
+export const shownPlace = (p, o = {}) => (p === 'choose' && o.queued && o.ticked && !o.running && !o.marked ? 'moving' : p);
+
+/**
+ * What the two buttons in Choose take: the ticked videos shown as tiles that can be ticked.
+ * Send takes the same ones, never one with an upload record, so the two counts agree.
+ * `decided(x)` is true for a video already sent to Delete.
+ */
+export function gridPicks(rows, sel, decided = () => false) {
+  const move = rows.filter((x) => x.p === 'choose' && sel.has(x.v.key) && canCopy(x.st.s) && !decided(x));
+  return { move, send: move.filter((x) => !x.v.record) };
+}

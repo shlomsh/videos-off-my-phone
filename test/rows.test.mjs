@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rowState, placeOf, gate, compare, canCopy, factsFor, differs } from '../extension/ui/rows.js';
+import { rowState, placeOf, shownPlace, gridPicks, gate, compare, canCopy, factsFor, differs } from '../extension/ui/rows.js';
 import { VIS, visName } from '../extension/lib/gate.js';
 import { plainReason, plainError, isoLength, amountLine, timeLeft, sentLine } from '../extension/ui/text.js';
 
@@ -190,4 +190,32 @@ test('the gate in rows lets an Unlisted or Public copy through as chosen', () =>
       assert.deepEqual(gate({ record: rec({ privacy: chosen }), details: D, video: yv(actual), channelId: 'UC' }), less ? [`privacy is ${actual}, not ${chosen}`] : 'ready');
     }
   }
+});
+
+test('after Stop, a video still ticked and queued waits in Move to YouTube, never in Choose', () => {
+  const o = { queued: true, ticked: true, running: false, marked: false };
+  assert.equal(shownPlace('choose', o), 'moving');
+  // Not queued, not ticked, in the queue that runs now, or sent to Delete: as placeOf says.
+  assert.equal(shownPlace('choose', { ...o, queued: false }), 'choose');
+  assert.equal(shownPlace('choose', { ...o, ticked: false }), 'choose');
+  assert.equal(shownPlace('choose', { ...o, running: true }), 'choose');
+  assert.equal(shownPlace('choose', { ...o, marked: true }), 'choose');
+  // Only Choose changes.
+  for (const p of ['moving', 'lost', 'working', 'look', 'stays', 'youtube']) assert.equal(shownPlace(p, o), p);
+});
+
+test('Send and Move in Choose count the same ticks', () => {
+  const row = (key, p, s, record = null) => ({ v: { key, record }, st: { s }, p });
+  const rows = [
+    row('a', 'choose', 'lib'), row('b', 'choose', 'lib'), row('c', 'choose', 'no'), // c cannot be moved
+    row('w', 'moving', 'lib'), // waits to continue after Stop: a faded tile
+    row('cut', 'moving', 'cut', { state: 'sending' }), // half-sent, queued: a faded tile
+    row('lost', 'lost', 'cut', { state: 'sending' }),
+    row('d', 'choose', 'lib'), // sent to Delete
+  ];
+  const sel = new Set(['a', 'b', 'c', 'w', 'cut', 'lost', 'd']);
+  const { move, send } = gridPicks(rows, sel, (x) => x.v.key === 'd');
+  assert.deepEqual(move.map((x) => x.v.key), ['a', 'b']);
+  assert.deepEqual(send.map((x) => x.v.key), ['a', 'b']);
+  assert.deepEqual(gridPicks(rows, new Set(['w', 'cut'])), { move: [], send: [] });
 });

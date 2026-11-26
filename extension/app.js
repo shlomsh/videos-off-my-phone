@@ -9,7 +9,7 @@ import { askRemove, askFinish } from './ui/account.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
 import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, phoneWords, initial } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
-import { rowState, placeOf, gate, canCopy, factsFor, differs } from './ui/rows.js';
+import { rowState, placeOf, shownPlace, gridPicks, gate, canCopy, factsFor, differs } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
 import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle, askEvery } from './ui/working.js';
 
@@ -345,7 +345,9 @@ function everything() {
     const full = { ...v, record: records.get(v.key) ?? null, listed };
     const st = rowState(full, c);
     const facts = ['yt', 'held'].includes(st.s) ? factsOf({ v: full, st }) : [];
-    out.push({ v: full, st, p: placeOf(st, facts, { queued: queued.has(v.key), ready: ready.has(v.key), gone: place.get(v.key) === 'gone' }) });
+    const p = placeOf(st, facts, { queued: queued.has(v.key), ready: ready.has(v.key), gone: place.get(v.key) === 'gone' });
+    // After Stop, what is still ticked waits to continue in step 2: in step 1 it is a faded "Going to YouTube" tile.
+    out.push({ v: full, st, p: shownPlace(p, { queued: queued.has(v.key), ticked: sel.has(v.key), running: !!run?.has(v.key), marked: !full.record && marks.has(v.key) }) });
   };
   for (const v of videos.values()) put(v, true);
   // A record marked as deleted only counts again if Google Photos lists the video.
@@ -367,13 +369,15 @@ function pile(all = everything()) { // step 1
   return toCopy(all).sort((a, b) => first(b) - first(a) || by(b) - by(a));
 }
 const ORDER = ['look', 'lost', 'moving', 'working', 'stays'];
-/** Step 2: what needs you first. A video that is still ticked after a stop is also in step 1. */
+/** Step 2: what needs you first. A video that is still ticked after a stop waits here (shownPlace), and is faded in step 1. */
 function moveRows(all = everything()) {
   const at = (x) => (x.st.s === 'up' || x.st.s === 'pause' && run?.get(x.v.key)?.text !== 'waiting' ? -1 : runKeys.indexOf(x.v.key));
-  return all.map((x) => (x.p === 'choose' && !run && queued.has(x.v.key) && sel.has(x.v.key) && !decisionOf(x) ? { ...x, p: 'moving' } : x)).filter((x) => ORDER.includes(x.p))
+  return all.filter((x) => ORDER.includes(x.p))
     .sort((a, b) => ORDER.indexOf(a.p) - ORDER.indexOf(b.p) || (a.p === 'moving' ? at(a) - at(b) : 0) || bySize(a, b));
 }
 const chosen = (all = everything()) => all.filter((x) => sel.has(x.v.key) && canCopy(x.st.s) && x.p !== 'lost' && !decisionOf(x));
+/** What the two buttons in step 1 take: only the ticks shown there. What waits to continue goes on from step 2. */
+const picked = (all = everything()) => gridPicks(all, sel, decisionOf);
 // Kept elements keep their first click handler, so handlers look things up when clicked.
 const sum = (list) => list.reduce((t, x) => t + (x.v.size ?? 0), 0);
 const perPage = () => (innerWidth > 1180 ? 18 : 12);
@@ -478,10 +482,10 @@ const visIcon = (v) => WHO.find((o) => o.value === v)?.icon ?? 'yt';
 async function askMove() {
   if (dialog || run || (busy && busy.kind !== 'list')) return;
   sentBar = null;
-  const picked = chosen(); // frozen now: exactly these move
-  const keys = picked.map((x) => x.v.key);
+  const list = picked().move; // frozen now: exactly these move
+  const keys = list.map((x) => x.v.key);
   if (!keys.length) return;
-  const size = sum(picked);
+  const size = sum(list);
   dialog = true;
   let who;
   try {
@@ -625,7 +629,7 @@ function verdict(x) {
   }
   if (place.get(v.key) === 'gone') return out('info', 'c-wait', 'It is not in your Google Photos library.', 'It may be in the trash. Do not empty the trash before this copy is checked.');
   if (p === 'lost') return out('fail', 'c-stop', 'It did not arrive.', st.s === 'cut' ? 'The upload broke off. YouTube is asked before it is sent again.' : st.meta);
-  if (p === 'moving') return out('clock', 'c-yt', 'Not yet.', st.s === 'pause' ? 'It waits for you to sign in.' : run ? 'It is on its way to YouTube.' : 'It waits for you to continue.');
+  if (p === 'moving') return out('clock', 'c-yt', 'Not yet.', st.s === 'pause' ? 'It waits for you to sign in.' : run?.has(v.key) ? 'It is on its way to YouTube.' : 'It waits for you to continue.');
   if (st.s === 'again') return out('info', 'c-wait', 'Moved before. Not found on YouTube yet.', 'It is not moved again, and it cannot be deleted here.');
   if (p === 'stays') return /shared album/.test(st.ax) ? out('held', 'c-wait', 'It stays.', st.ax) : out('info', 'c-wait', 'It stays.', /start to end/.test(st.ax) ? 'The upload broke off, so it was never checked from start to end.' : /another channel/i.test(st.word) ? 'It is on another channel. Switch channel to check it.' : st.ax);
   if (st.s === 'proc') return out('clock', 'c-yt', 'Not yet.', 'YouTube is working on it. It moves on by itself.');
@@ -1070,7 +1074,7 @@ function paintBar(all) {
   const n3 = onYouTube(all).length + [...marks].filter(([k]) => !records.has(k)).length;
   const subs = [
     busy?.kind === 'list' ? `${n1} so far` : started || n1 ? (n1 ? count(n1) : 'Nothing left') : 'Not read yet',
-    run ? (want ? 'Paused' : `${pct()}%`) : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : lastRun && (lastRun.stopped || lastRun.halted) && waiting(all).length ? 'Stopped' : rows2.some(withYouTube) ? 'YouTube working' : 'Nothing to do',
+    run ? (want ? 'Paused' : `${pct()}%`) : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : waiting(all).length ? 'Stopped' : rows2.some(withYouTube) ? 'YouTube working' : 'Nothing to do',
     busy?.kind === 'trash' ? 'Deleting' : lock() ? 'Look first' : n3 ? count(n3) : trashed ? 'Nothing left' : 'Nothing yet',
   ];
   // Keyed, so the "+N" pops once when it appears, not again at each redraw.
@@ -1153,7 +1157,7 @@ function openAway(key) {
 /** "Send N to Delete, no copy": marks the ticked ones as the player's Skip does. Nothing is deleted. */
 function sendPicked() {
   if (dialog) return;
-  const list = chosen().filter((x) => x.p === 'choose' && !x.v.record); // frozen now: exactly these
+  const list = picked().send.filter((x) => !queued.has(x.v.key)); // frozen now: exactly these; never one that waits to continue
   if (!list.length) return;
   const keys = list.map((x) => x.v.key);
   for (const k of keys) decide(k, 'bare');
@@ -1192,9 +1196,9 @@ function chooseView(all) {
   page = Math.min(page, pages - 1);
   const shown = grid.slice(page * per, (page + 1) * per);
   loadThumbs(shown).catch(() => {}); // pictures are optional
-  const ticked = chosen(all);
-  const bare = ticked.filter((x) => x.p === 'choose' && !x.v.record); // what Send to Delete takes
-  const away = ticked.filter((x) => x.p === 'choose' && !shown.some((y) => y.v.key === x.v.key)).length;
+  const { move: ticked, send } = picked(all); // the same ticks for both buttons, so their counts agree
+  const bare = send.filter((x) => !queued.has(x.v.key)); // what Send to Delete takes
+  const away = ticked.filter((x) => !shown.some((y) => y.v.key === x.v.key)).length;
   const last = page + 1 >= pages;
   const x = single && list.find((y) => y.v.key === single.key);
   const twin = single?.twin && x && !sel.has(x.v.key) ? 'A video with the same name and size was already moved, so the first one is not ticked.' : '';
@@ -1203,7 +1207,9 @@ function chooseView(all) {
   const turn = (f, label, sign, off, fn) => h('button', { type: 'button', class: 'ib', 'data-f': f, 'aria-label': label, disabled: off, onclick: () => { sentBar = null; fn(); } }, mark(sign, 20));
   const noPhotos = photosOpen === false;
   const offMove = run ? 'Wait until uploading has finished.' : ticked.length ? (busy && !reading ? 'Wait a moment.' : '') : 'Tick at least one video first.';
-  const why = !ticked.length ? 'Tick at least one video first.' : noPhotos ? 'No Google Photos tab is open.' : offMove;
+  const offSend = bare.length ? '' : 'Tick at least one video first.';
+  // One reason beside the buttons; a grey button always points at it, so it is there whenever one is grey.
+  const why = !ticked.length ? 'Tick at least one video first.' : noPhotos ? 'No Google Photos tab is open.' : offMove || offSend;
   const b = sentBar;
   return [
     main('copy', '', title(reading ? 'Reading your videos…' : 'Which videos should leave?', '', h('label', { class: 'f' }, 'Show ', h('select', { 'data-f': 'sort', onchange: (e) => { sort = e.target.value; page = 0; sentBar = null; render(); } }, h('option', { value: 'big', selected: sort === 'big' }, 'Largest first'), h('option', { value: 'new', selected: sort === 'new' }, 'Newest first')))),
@@ -1216,7 +1222,7 @@ function chooseView(all) {
       h('span', { class: 'pg' }, turn('prev', 'Previous page', 'left', page === 0, () => { page = Math.max(0, page - 1); render(); }), h('span', null, where),
         turn('next', last ? 'Read more videos' : 'Next page', 'right', last && (!more || reading || !!run), () => { if (page + 1 < Math.ceil(gridList().length / perPage())) { page += 1; render(); } else goTo(page + 1, 1); })), note(hints),
       why ? h('span', { class: 'why', id: 'why' }, why) : null,
-      button('senddel', 'btn sec', bare.length ? `Send ${bare.length} to Delete, no copy` : 'Send to Delete, no copy', sendPicked, { disabled: !bare.length, 'aria-describedby': bare.length ? null : 'why' }),
+      button('senddel', 'btn sec', bare.length ? `Send ${bare.length} to Delete, no copy` : 'Send to Delete, no copy', sendPicked, { disabled: !!offSend, 'aria-describedby': offSend ? 'why' : null }),
       noPhotos ? button('photos2', 'btn', 'Open Google Photos', openPhotos)
         : button('copy', 'btn', ticked.length ? `Move ${ticked.length} to YouTube, ${gb(sum(ticked))}` : 'Move to YouTube', () => askMove(), { disabled: !!offMove, 'aria-describedby': offMove ? 'why' : null })),
   ];
@@ -1289,7 +1295,7 @@ function answer(kind, e) {
   decide(key, back ? null : kind);
   const next = back ? key : list[at + 1]?.v.key ?? (kind === 'copy' ? key : list[at - 1]?.v.key ?? null);
   const facts = [gb(x.v.size), Number.isFinite(x.v.timestamp) ? day(x.v.timestamp) : ''].filter(Boolean).join(', ');
-  const text = back ? 'Not ticked any more.' : kind === 'copy' ? `Ticked to move: ${facts}. It moves when you press Move ${chosen().length} to YouTube.`
+  const text = back ? 'Not ticked any more.' : kind === 'copy' ? `Ticked to move: ${facts}. It moves when you press Move ${picked().move.length} to YouTube.`
     : `Sent to Delete with no YouTube copy: ${facts}. Nothing is deleted until you say yes there.`;
   said = { text: !back && next === key ? `${text} That was the last one.` : text, was, mini: back ? null : key };
   seq += 1;
@@ -1429,12 +1435,13 @@ function moveView(all) {
     const of_ = `Video ${Math.max(1, progress.index)} of ${progress.count}`;
     v = want ? { head: want.problem ? `Still paused. ${want.problem.title}` : 'Paused. Please sign in again.', sub: 'Nothing is lost.', n: p, isHeld: true, small: of_, foot: foot(note(`Use the same channel: ${channel.title}.`), 'resume', 'Sign in to YouTube', resumeSignIn) }
       : { head: `Moving ${count(progress.count)} to YouTube`, sub: `${of_}. ${timeLeft(progress)}`, n: p, small: sentLine(progress), foot: foot(note('Keep this tab and the Google Photos tab open.'), 'stop', 'Stop', () => busy?.abort(), { sec: true }) };
-  } else if (lastRun && (lastRun.halted || lastRun.stopped) && wait.length) {
-    const r = lastRun;
+  } else if (wait.length) { // also after a later Move of other videos: what waits is never left without Continue
+    const r = lastRun ?? {};
+    const ended = r.halted || r.stopped;
     const why = (r.halted && notice) || null;
     const cont = why?.action === 'photos' && photosOpen === false ? foot(null, 'photos3', 'Open Google Photos', openPhotos)
       : foot(note('The half-sent one does not count. YouTube is asked before it is sent again.'), 'continue', `Continue with ${wait.length}`, () => startMove(waiting(everything()).map((x) => x.v.key)), { off: why?.kind === 'clock' ? 'Try again tomorrow.' : busy && busy.kind !== 'list' ? 'Wait a moment.' : '' });
-    v = { head: why ? why.title : r.halted ? 'Uploading stopped.' : `You stopped after ${r.up} of ${count(r.total)}.`, sub: why?.text, n: r.pct, isHeld: true, small: `${count(wait.length)} ${wait.length === 1 ? 'is' : 'are'} still ticked`, foot: cont };
+    v = { head: why ? why.title : r.stopped ? `You stopped after ${r.up} of ${count(r.total)}.` : 'Uploading stopped.', sub: why?.text, n: ended ? r.pct : undefined, isHeld: true, small: `${count(wait.length)} ${wait.length === 1 ? 'is' : 'are'} still ticked`, foot: cont };
   } else if (askFailed && !asking) {
     v = { head: 'Nothing is confirmed right now.', sub: 'YouTube did not answer.', foot: foot(note('Nothing moves on until it answers.'), 'askagain', 'Try again', askAgain, { off: busy && busy.kind !== 'list' ? 'Wait a moment.' : '' }) };
   } else {
