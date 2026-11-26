@@ -394,3 +394,24 @@ body{margin:0}
 @keyframes vomStripe{to{background-position:22.6px 0}}
 .ge .slowp{flex-basis:100%;margin:4px 0 0}
 @media (prefers-reduced-motion:reduce){.ge .live i{animation:none}.ge .pb.ind i{animation:none}}
+/* v45 to v49: one vocabulary (canvas v47). The +N on the Delete pill, the moment after an answer, the bar after Send to Delete */
+.ge em.plus{font-style:normal;font-size:12px;font-weight:700;line-height:1;background:var(--go);color:#fff;border-radius:99px;padding:4px 7px;margin-left:8px;align-self:center;animation:vomPop .5s ease-out}
+@keyframes vomPop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+.ge .stamp{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#101215a6;color:#fff;text-align:center;animation:vomFade .25s ease-out;z-index:2;cursor:pointer;padding:12px}
+.ge .stamp strong{font-size:24px;font-weight:500;color:#fff}.ge .stamp>span:last-child{font-size:15px;opacity:.85}
+.ge .stamp .sk{width:56px;height:56px;border-radius:50%;background:var(--go);display:grid;place-items:center;color:#fff;animation:vomPop .4s ease-out}
+@keyframes vomFade{from{opacity:0}to{opacity:1}}
+.ge .side1 .mini{display:inline-block;flex:none;width:48px;height:27px;border-radius:4px;overflow:hidden;vertical-align:middle}
+.ge .side1 .mini .th{width:100%;height:100%;object-fit:cover;display:block}.ge .side1 .mini .th.miss .mk{width:16px;height:16px}
+@container (min-width:901px){.ge .foot{position:relative}} /* narrow: the footer is sticky, which places the bar as well */
+.ge .foot .btn+.btn{margin-left:0}
+.ge .foot.two{gap:12px}.ge .foot.two .pg{margin-right:8px}
+.ge .snackbox{position:absolute;left:0;right:0;top:0;height:0}
+.ge .snack{position:absolute;left:24px;bottom:calc(100% + 12px);max-width:calc(100% - 48px);display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 8px 8px 16px;border-radius:12px;background:#202124;color:#fff;font-size:14px;box-shadow:0 4px 16px #0003;animation:vomFade .25s ease-out;z-index:3}
+.ge .snack .txt{color:#8ab4ff;min-height:36px;padding:6px 10px}
+.ge .snack .mk{flex:none;color:#8ab4ff}
+.ge .vid.away .pic{opacity:.45}.ge .vid.away .cap{color:var(--mute)}
+@media (prefers-reduced-motion:reduce){.ge em.plus,.ge .stamp,.ge .stamp .sk,.ge .snack{animation:none}}
+.ge .ph3 p .hint{display:block;margin-top:6px;font-size:13px;line-height:1.4;color:var(--mute)}
+.ge .side1>span:not(.mini){flex:1 1 0;min-width:0}.ge .side1 .txt{margin-block:-12px;padding-inline:8px}
+@container (max-width:900px){.ge .foot.two .btn{width:auto;flex:1 1 40%;min-width:140px;padding-inline:10px;font-size:15px}.ge .foot.two .why{flex-basis:100%;margin-left:0}.ge .step:has(+ .foot .snack){padding-bottom:120px}.ge .snack{left:16px;max-width:calc(100% - 32px)}}

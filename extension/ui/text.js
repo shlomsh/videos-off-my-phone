@@ -7,6 +7,28 @@ export const day = (ms) => new Date(ms).toLocaleDateString([], { day: 'numeric',
 export const month = (ms) => new Date(ms).toLocaleDateString([], { month: 'long', year: 'numeric' });
 export const count = (n, one = 'video', many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
+/**
+ * The delete question's sentence about YouTube copies, by the real count: c have a YouTube copy, of n.
+ * Empty when none has one. Ends with a space when not empty, so it can lead the next sentence.
+ */
+export function copiesStay(c, n) {
+  if (!(c > 0)) return '';
+  if (c >= n) return c === 1 ? 'The YouTube copy stays. ' : 'The YouTube copies stay. ';
+  return c === 1 ? '1 has a YouTube copy, which stays. ' : `${c} have YouTube copies, which stay. `;
+}
+/** The words on the done page that follow how many videos it is about: it or them, and the iPhone's question. */
+export function phoneWords(n) {
+  const many = n > 1;
+  return {
+    it: many ? 'them' : 'it',
+    ask: many ? `Allow “Google Photos” to delete ${n} videos?` : 'Allow “Google Photos” to delete this video?',
+    sub: many ? 'They will be in Recently Deleted for 30 days.' : 'It will be in Recently Deleted for 30 days.',
+    head: many ? 'Now remove them from your iPhone' : 'Now remove it from your iPhone',
+  };
+}
+/** The first letter of the channel's name, as in the app's own circle; empty when not known. */
+export const initial = (title) => (typeof title === 'string' ? [...title.trim()][0]?.toUpperCase() ?? '' : '');
+
 const left = (s) => (s < 5 ? 'a few seconds' : s < 90 ? `about ${Math.round(s)} seconds` : s < 5400 ? `about ${Math.round(s / 60)} minutes` : `about ${(s / 3600).toFixed(1)} hours`);
 /** "About 4 minutes left.", or nothing while the speed is not known. */
 export function timeLeft({ bytes, total, sent, seconds }) {
