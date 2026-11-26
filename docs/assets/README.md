@@ -11,6 +11,7 @@ Made by the design session. All pictures use invented sample data. No Google or 
 | oauth-logo-120.png | OAuth consent screen app logo (120×120) |
 | screenshot-1-start.png … screenshot-5-done.png | Web Store screenshots, 1280×800 |
 | promo-440x280.png | Web Store small promo tile |
+| marquee-1400x560.png | Web Store marquee (optional) |
 | site/index.html, site/privacy.html, site/style.css, site/icon.svg | Homepage and privacy policy for OAuth verification. Static, no remote fonts or scripts, light and dark |
 
 Before publishing the site, fill in the yellow placeholders: `REPO_URL`, `STORE_URL`, [date], [developer name], [contact email]. Do not use the user's personal email unless they say so.
