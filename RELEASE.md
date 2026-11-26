@@ -31,6 +31,7 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 - [ ] **Revoked on Google's own permissions page:** delete the YouTube data within 30 days. The app must notice when its sign-in can't be renewed.
 
 ## Approved, not built yet
+- [ ] **Wording set, canvas v45–v49** (approved 26 Nov 2026: "approve the whole set, build it after v44"). Step names Move to YouTube / Delete from Google Photos; player "Skip YouTube, send to Delete" / "Move to YouTube" with a note and a 1-second confirmation, Undo; batch "Send N to Delete, no copy" in Choose; labels "No YouTube copy"; count-correct copy and it/them wording; the channel letter in the phone picture; the iPhone refresh tip. Build after v44.
 - [ ] Step 1 shows videos that are already in Move or Delete, faded with "In Move" / "In Delete". A click opens them there.
 - [ ] "Do not move it" beside "Try again" for an upload that did not arrive.
 - [ ] After Stop, the waiting videos appear only in step 2.
@@ -42,9 +43,18 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 ## Decisions still open (yours)
 - [x] Whether people other than you should be able to sign in: yes, everyone (26 Nov 2026).
 
+## Full test on the real account (26 Nov 2026, 0.12.0 → 0.12.1): passed
+- Unlisted upload (IMG_3916.MOV, 28 MB): stayed Unlisted, played in the app, every fact the same; deleted with one yes.
+- Second upload (IMG_4776.MOV, 43 MB) reached Delete by itself after YouTube finished.
+- Several at once: IMG_4776.MOV (on YouTube) + IMG_4972.MOV (no copy), one yes, one by one. Counter 882 → 985 MB.
+- iPhone: Review out-of-sync changes → Delete all worked, after refreshing the Google Photos app.
+- Account menu, version line, Sign out and Sign in again: the list and the counter stayed.
+- Found while testing, sent to design (canvas v45–49, waiting for your yes): the player's Delete only marks; no sign after an answer; "Move" doesn't say where; batch delete from Choose; singular/plural slips; the "H" avatar; a refresh tip for the iPhone steps. Progress for "YouTube is working" (v44) is being built.
+
 ## Not proven on the real account yet
-- [ ] Deleting a **no-copy** video. Only an On YouTube one has been done (IMG_4959.MOV; and IMG_3916.MOV, Unlisted, on 26 Nov 2026 with 0.12.0).
-- Versions are tagged on GitHub from 0.12.0 (`v0.12.0`, `v0.12.1`). The app shows its version in the account menu and on the start page.
+- [x] Deleting a **no-copy** video, and **several at once**: proven on 26 Nov 2026 with 0.12.1 (IMG_4776.MOV Unlisted with a copy + IMG_4972.MOV no copy, one yes, one by one; counter 910 → 985 MB).
+- Versions are tagged on GitHub from 0.12.0. From 0.13.0 on, the Release workflow tags, makes the GitHub release and uploads to the store (after your approval): see [docs/store-publishing.md](docs/store-publishing.md). The Google side is set up and proven (26 Nov 2026).
+- Your wish (26 Nov 2026): test the next drop (0.13.x) from the store itself. That means switching from the test copy to the store copy ("finish first" in the account menu). The app shows its version in the account menu and on the start page.
 - [x] An **Unlisted** upload stays Unlisted and plays inside the app. Proven on the real account on 26 Nov 2026 with 0.11.2/0.12.0 (IMG_3916.MOV, 28 MB): every fact the same, Seen by "As you chose".
 - [ ] **Whether the Google Photos trash still counts toward storage.** Google's Help pages don't say. Until it is known, the counter must not say the space is free now. To find out, compare the storage figure before and after a large delete.
 

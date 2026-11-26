@@ -57,7 +57,7 @@ test('gate passes only a fully confirmed video', () => {
 
 // ---- queue
 function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }, original = true, choice = 'private' } = {}) {
-  const w = { store: new Map(Object.entries(records)), sessions: [], given: [], streams: [], auth: 0, history: [] };
+  const w = { store: new Map(Object.entries(records)), sessions: [], given: [], streams: [], sent: [], auth: 0, history: [] };
   w.d = {
     channelId: 'ch', now: () => 't',
     getRecord: async (k) => w.store.get(k) ?? null,
@@ -67,9 +67,10 @@ function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }
     probe: async () => probe,
     privacyOf: () => choice,
     startSession: async (x, privacy) => { w.sessions.push(x.key); w.given.push(privacy); return 'uri'; },
-    stream: async ({ key }) => {
+    stream: async ({ key, sessionUri, from }) => {
       assert.equal(w.store.get(key).state, 'sending', 'recorded before any byte is sent');
       w.streams.push(key);
+      w.sent.push({ key, sessionUri, from });
       if (failOn[key]) throw failOn[key];
       return { video: { id: `id-${key}` }, bytes: 10, sha256: SHA };
     },
@@ -103,12 +104,43 @@ test('queue asks YouTube about an interrupted upload first', async () => {
   await runQueue(['a'], w.d);
   assert.deepEqual(w.streams, []);
   assert.equal(w.store.get('a').state, 'uncertain');
-  w = queueWorld({ records: sending });
+  w = queueWorld({ records: sending, probe: { state: 'incomplete', offset: 4 } });
   await runQueue(['a'], w.d);
   assert.deepEqual(w.streams, ['a']);
   w = queueWorld({ records: { a: { ...sending.a, channel: 'other' } } });
   await runQueue(['a'], w.d);
   assert.deepEqual(w.streams, []);
+});
+
+// Stop, then Continue: YouTube still holds the first part. It goes on in the same session,
+// from the byte YouTube confirms. A second session would be a second upload of the same video.
+test('an interrupted upload goes on in the same session, never a new one', async () => {
+  const sending = { a: { state: 'sending', sessionUri: 'u', size: 10, fileName: 'a.MOV', channel: 'ch', privacy: 'unlisted', at: 's' } };
+  let w = queueWorld({ records: sending, probe: { state: 'incomplete', offset: 4 }, choice: 'public' });
+  assert.deepEqual(await runQueue(['a'], w.d), [{ key: 'a', result: 'uploaded' }]);
+  assert.deepEqual(w.sessions, [], 'no new upload session');
+  assert.deepEqual(w.sent, [{ key: 'a', sessionUri: 'u', from: 4 }]);
+  assert.deepEqual(w.history, [['a', 'uploaded']], 'the sending record (and its address) is kept until it arrives');
+  assert.equal(w.store.get('a').privacy, 'unlisted', 'what the first try was given');
+  // Nothing arrived yet: still the same session, from byte 0.
+  w = queueWorld({ records: sending, probe: { state: 'incomplete', offset: 0 } });
+  await runQueue(['a'], w.d);
+  assert.deepEqual([w.sessions, w.sent], [[], [{ key: 'a', sessionUri: 'u', from: 0 }]]);
+  // A failure while going on keeps the record, so the next try asks YouTube again.
+  w = queueWorld({ records: sending, probe: { state: 'incomplete', offset: 4 }, failOn: { a: new FatalError('lost') } });
+  await runQueue(['a'], w.d);
+  assert.deepEqual(w.sessions, []);
+  assert.deepEqual(w.store.get('a'), sending.a);
+  // Google Photos now lists another size: the old session cannot take it, and no new one is started.
+  w = queueWorld({ records: { a: { ...sending.a, size: 11 } }, probe: { state: 'incomplete', offset: 4 } });
+  assert.deepEqual(await runQueue(['a'], w.d), [{ key: 'a', result: 'failed' }]);
+  assert.deepEqual([w.sessions, w.streams], [[], []]);
+  assert.equal(w.store.get('a').state, 'sending');
+  // YouTube does not answer: nothing is sent, and the record waits.
+  w = queueWorld({ records: sending });
+  w.d.probe = async () => { throw new Error('offline'); };
+  await runQueue(['a'], w.d);
+  assert.deepEqual([w.sessions, w.streams, w.store.get('a').state], [[], [], 'sending']);
 });
 
 test('one bad video is skipped; quota or sign-in problems stop everything', async () => {
@@ -138,8 +170,9 @@ test('queue stops when asked', async () => {
 });
 
 test('interrupted session answers', async () => {
-  const answers = { 308: [308, {}, ''], override: [200, { 'x-http-status-code-override': '308' }, ''], 200: [200, {}, '{"id":"v"}'], 404: [404, {}, ''], empty: [200, {}, '{}'] };
-  const want = { 308: 'incomplete', override: 'incomplete', 200: 'finished', 404: 'expired', empty: 'expired' };
+  const answers = { 308: [308, {}, ''], some: [308, { range: 'bytes=0-19' }, ''], override: [200, { 'x-http-status-code-override': '308', range: 'bytes=0-49' }, ''], 200: [200, {}, '{"id":"v"}'], 404: [404, {}, ''], empty: [200, {}, '{}'] };
+  const want = { 308: 'incomplete', some: 'incomplete', override: 'incomplete', 200: 'finished', 404: 'expired', empty: 'expired' };
+  const offset = { 308: 0, some: 20, override: 50 }; // how much YouTube holds
   for (const [name, [code, head, body]] of Object.entries(answers)) {
     let range;
     const s = http.createServer((q, r) => { range = q.headers['content-range']; r.writeHead(code, head); r.end(body); });
@@ -147,6 +180,7 @@ test('interrupted session answers', async () => {
     const p = await probeSession({ sessionUri: `http://127.0.0.1:${s.address().port}/`, size: 50, token: 't' });
     s.closeAllConnections(); s.close();
     assert.equal(p.state, want[name], name);
+    assert.equal(p.offset, offset[name], name);
     assert.equal(range, 'bytes */50');
   }
 });
@@ -325,15 +359,15 @@ test('the queue sends and records the choice of this press, or of the try it con
   assert.deepEqual(w.given, []);
   assert.equal(w.store.get('a').privacy, 'unlisted');
   assert.equal(w.store.get('a').state, 'uploaded');
-  // Started again: the earlier try's choice, not this press's.
+  // Gone on with in its own session: the earlier try's choice, not this press's. No new session is given one.
   w = queueWorld({ records: sending({ privacy: 'unlisted' }), choice: 'public' });
   await runQueue(['a'], w.d);
-  assert.deepEqual(w.given, ['unlisted']);
+  assert.deepEqual([w.given, w.streams], [[], ['a']]);
   assert.equal(w.store.get('a').privacy, 'unlisted');
   // A try from before the choice existed was Private, whatever this press says.
   w = queueWorld({ records: sending({}), choice: 'public' });
   await runQueue(['a'], w.d);
-  assert.deepEqual(w.given, ['private']);
+  assert.deepEqual([w.given, w.streams], [[], ['a']]);
   assert.equal(w.store.get('a').privacy, 'private');
   // No readable choice: nothing is started.
   for (const choice of [undefined, null, '', 'Public', 'secret']) {

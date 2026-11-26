@@ -34,6 +34,7 @@ async function uploadOne(key, d, { signal, onState }) {
   onState(key, 'Preparing');
   await d.getAuth(true);
 
+  let from = null; // set when an earlier try goes on in its own session
   if (before?.state === 'sending') {
     if (before.channel !== d.channelId) throw new Error('An earlier upload was started on another channel.');
     const p = await d.probe(before);
@@ -49,6 +50,8 @@ async function uploadOne(key, d, { signal, onState }) {
       onState(key, 'Check YouTube Studio first');
       return 'uncertain';
     }
+    // Still open on YouTube. It goes on in that same session: a new one could become a second copy.
+    from = p.offset ?? 0;
   }
 
   // Who may watch it: chosen at Move, or, when an earlier try is sent again, what that try was given.
@@ -56,11 +59,17 @@ async function uploadOne(key, d, { signal, onState }) {
   if (!VIS.includes(privacy)) throw new Error('It is not known who may watch it, so it was not sent.');
   const details = await d.getDetails(key);
   if (!details.original) throw new Error('Not Original quality in Google Photos.');
-  const sessionUri = await d.startSession(details, privacy);
-  const record = { state: 'sending', sessionUri, size: details.size, fileName: details.fileName, channel: d.channelId, privacy, at: d.now() };
-  await d.setRecord(key, record);
+  let sessionUri;
+  if (from === null) {
+    sessionUri = await d.startSession(details, privacy);
+    await d.setRecord(key, { state: 'sending', sessionUri, size: details.size, fileName: details.fileName, channel: d.channelId, privacy, at: d.now() });
+  } else {
+    // The record stays as it is, so a failure from here is asked about again next time.
+    if (details.size !== before.size) throw new Error('Google Photos now lists another size than when it was started, so it was not sent.');
+    sessionUri = before.sessionUri;
+  }
   onState(key, 'Uploading');
-  const r = await d.stream({ details, key, sessionUri, signal, onProgress: (n) => onState(key, 'Uploading', n / details.size) });
+  const r = await d.stream({ details, key, sessionUri, from: from ?? 0, signal, onProgress: (n) => onState(key, 'Uploading', n / details.size) });
   if (r.bytes !== details.size) throw new Error('Byte count does not match.');
   await d.setRecord(key, { state: 'uploaded', id: r.video.id, sha256: r.sha256, size: r.bytes, fileName: details.fileName, channel: d.channelId, privacy, at: d.now() });
   onState(key, 'Uploaded');

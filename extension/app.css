@@ -430,3 +430,5 @@ body{margin:0}
 .ge .side1>span:not(.mini){flex:1 1 0;min-width:0}.ge .side1 .txt{margin-block:-12px;padding-inline:8px}
 @container (max-width:900px){.ge .foot.two .btn{width:auto;flex:1 1 40%;min-width:140px;padding-inline:10px;font-size:15px}.ge .foot.two .why{flex-basis:100%;margin-left:0}.ge .step:has(+ .foot .snack){padding-bottom:120px}.ge .snack{left:16px;max-width:calc(100% - 32px)}}
 @container (max-width:900px){.ge .stamp{background:#101215e0;gap:4px}.ge .stamp strong{font-size:17px}.ge .stamp>span:last-child{font-size:13px}.ge .stamp .sk{width:36px;height:36px}.ge .stamp .sk .mk{width:20px;height:20px}}
+/* After a delete: when the phone steps do not fit (a yellow line, many "Deleted here"), this step scrolls instead of running under the footer. */
+.ge .aft{overflow-y:auto}
