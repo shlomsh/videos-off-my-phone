@@ -1,0 +1,160 @@
+# Release: runs when main gets a new version in extension/manifest.json.
+#   1. build:  tests, store zip, tag vX.Y.Z and a GitHub release with the zip.
+#   2. store:  waits for your approval (environment "chrome-web-store"), then uploads the zip
+#              to the Chrome Web Store and submits it for review.
+# Setup and how to use it: docs/store-publishing.md
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [extension/manifest.json]
+  workflow_dispatch:
+    inputs:
+      publish_type:
+        description: After Google approves it
+        type: choice
+        options: [repo default, DEFAULT_PUBLISH, STAGED_PUBLISH]
+        default: repo default
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # tag and GitHub release
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      new: ${{ steps.v.outputs.new }}
+      zip: ${{ steps.v.outputs.zip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Which version
+        id: v
+        run: |
+          version=$(node -p "require('./extension/manifest.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "zip=dist/videos-off-my-phone-$version-store.zip" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::v$version is already released. Bump the version in extension/manifest.json to release."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Tests
+        if: steps.v.outputs.new == 'true'
+        run: npm test
+      - name: Store zip
+        if: steps.v.outputs.new == 'true'
+        run: npm run pack
+      - name: Tag and GitHub release
+        if: steps.v.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+          ZIP: ${{ steps.v.outputs.zip }}
+        run: gh release create "v$VERSION" "$ZIP" --target "$GITHUB_SHA" --title "$VERSION" --generate-notes
+      - uses: actions/upload-artifact@v4
+        if: steps.v.outputs.new == 'true'
+        with:
+          name: store-zip
+          path: ${{ steps.v.outputs.zip }}
+          if-no-files-found: error
+
+  store:
+    needs: build
+    if: needs.build.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    environment: chrome-web-store # you approve each upload here
+    permissions:
+      contents: read
+      id-token: write # keyless sign-in to Google (Workload Identity Federation)
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      ITEM: publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_ITEM_ID }}
+      API: https://chromewebstore.googleapis.com
+    steps:
+      - name: Set up?
+        id: ready
+        env:
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_ITEM_ID: ${{ vars.CWS_ITEM_ID }}
+          GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          missing=""
+          for n in CWS_PUBLISHER_ID CWS_ITEM_ID GCP_WIF_PROVIDER GCP_SERVICE_ACCOUNT; do
+            [ -n "${!n}" ] || missing="$missing $n"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::Store upload skipped: repository variables not set:$missing. See docs/store-publishing.md. The zip is on the GitHub release."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          name: store-zip
+          path: dist
+      - name: Sign in to Google
+        id: auth
+        if: steps.ready.outputs.ok == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+      - name: Nothing waiting for review?
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          status=$(curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$API/v2/$ITEM:fetchStatus")
+          echo "$status" | jq '{published: .publishedItemRevisionStatus, submitted: .submittedItemRevisionStatus}'
+          state=$(echo "$status" | jq -r '.submittedItemRevisionStatus.state // empty')
+          if [ "$state" = "PENDING_REVIEW" ]; then
+            echo "::error::Another version is still in review. Wait for it, or cancel it in the Developer Dashboard, then re-run this job."
+            exit 1
+          fi
+      - name: Upload
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          ZIP: ${{ needs.build.outputs.zip }}
+        run: |
+          res=$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $TOKEN" -T "$ZIP" "$API/upload/v2/$ITEM:upload")
+          echo "$res"
+          state=$(echo "$res" | jq -r '.uploadState')
+          for _ in $(seq 1 30); do
+            [ "$state" = "IN_PROGRESS" ] || break
+            sleep 10
+            state=$(curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$API/v2/$ITEM:fetchStatus" | jq -r '.lastAsyncUploadState')
+            echo "upload: $state"
+          done
+          if [ "$state" != "SUCCEEDED" ]; then echo "::error::Upload ended as $state."; exit 1; fi
+      - name: Submit for review
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          INPUT_TYPE: ${{ inputs.publish_type }}
+          REPO_TYPE: ${{ vars.CWS_PUBLISH_TYPE }}
+        run: |
+          type="$INPUT_TYPE"
+          if [ -z "$type" ] || [ "$type" = "repo default" ]; then type="${REPO_TYPE:-STAGED_PUBLISH}"; fi
+          res=$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d "{\"publishType\": \"$type\"}" "$API/v2/$ITEM:publish")
+          echo "$res"
+          echo "::notice::$VERSION submitted for review ($type). Now: $(echo "$res" | jq -r '.state')."
