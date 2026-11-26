@@ -30,24 +30,24 @@ Prepared 26 Nov 2026 from `extension/manifest.json` 0.11.0 and [listing.md](list
 ### Description (paste)
 > Your phone and your Google storage fill up with videos. YouTube storage doesn't count toward your Google storage.
 >
-> Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. You choose who can watch: only you, people with the link, or everyone.
+> Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. You choose who can watch (only you, people with the link, or everyone), and the title and description.
 >
-> It checks that the copy is complete, then deletes the Google Photos original for you, one confirmed video at a time. Google Photos then removes it from your phone.
+> Every copy is checked against the original. Then it helps you delete the Google Photos originals, only after your yes. Google Photos then removes them from your phone.
 >
 > Free and open source. No ads, no account with us, no server of ours. Your videos go straight from Google Photos to YouTube.
 >
 > HOW IT WORKS
-> 1. Choose: your videos, biggest first. Mark what to move and what to simply delete.
-> 2. Move: each video streams from Google Photos to your YouTube channel. Nothing is saved to disk.
-> 3. Check: size, resolution, length and day are compared with the original.
-> 4. Delete, only after your yes: the original goes to the Google Photos trash (kept there 30 days). The trash is never emptied.
+> 1. Choose: your videos, biggest first. Tick the ones to move to YouTube, or send a video straight to Delete with no YouTube copy.
+> 2. Move to YouTube: each video streams from Google Photos to your channel. Nothing is saved to disk. Size, resolution, length and day are then compared with the original.
+> 3. Delete from Google Photos, only after your yes: the original goes to the Google Photos trash, where it stays for 30 days. The extension never empties the trash.
 >
 > WHAT YOU SHOULD KNOW
 > • Google Photos has no public interface for this. The extension uses the same internal web calls the Google Photos website uses, in your own open Google Photos tab, with your existing session. It never sees your password. If Google changes these calls, the extension stops and deletes nothing.
 > • It can upload to YouTube and read what it uploaded. It cannot delete or change anything on YouTube.
-> • Videos in shared albums are never deleted.
+> • Videos in shared albums are never deleted: they can go to YouTube, but Google Photos keeps them.
 > • YouTube does not give the original file back. Keep another copy of anything you can't replace.
 > • YouTube has daily upload limits.
+> • The steps for removing the videos from your phone are written for iPhone.
 >
 > By using it you agree to the YouTube Terms of Service (https://www.youtube.com/t/terms).
 >
