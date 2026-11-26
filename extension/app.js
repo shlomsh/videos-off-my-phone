@@ -1,7 +1,7 @@
 import * as photos from './lib/photos.js';
 import * as yt from './lib/youtube.js';
 import { streamToSession, probeSession, StopError } from './lib/transfer.js';
-import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive, forgetYouTubeStored, forgetAll, finishCounts } from './lib/records.js';
+import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive, forgetYouTubeStored, forgetYouTube, forgetAll, finishCounts } from './lib/records.js';
 import { runQueue, putBackPlan } from './lib/queue.js';
 import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib/trash.js';
 import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
@@ -12,6 +12,8 @@ import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainEr
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs, stopTally } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
+import { matchUploads, toFind, relink } from './lib/refind.js';
+import { originalLine } from './lib/meta.js';
 import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle, lowestPct, askEvery } from './ui/working.js';
 
 const $ = (id) => document.getElementById(id);
@@ -96,6 +98,10 @@ const ready = new Set();
 const details = new Map();
 const place = new Map(); // videos not listed in this visit: their picture and length, or 'gone', or 'unknown'
 let goneNote = '';
+// finding moved videos on the channel again (v43)
+let finding = null; // while it looks: { why: 'again' | 'refresh' | 'one', keys, at, found, missing }
+const notFound = new Set(); // looked for in this visit, and not on the channel
+let foundHere = 0; // found again in this visit
 
 // ---- helpers
 async function photosTab() {
@@ -114,9 +120,11 @@ async function watchPhotos() {
 }
 const openPhotos = () => { notice = null; render(); return chrome.tabs.create({ url: 'https://photos.google.com/', active: false }).then(() => setTimeout(watchPhotos, 1500)); };
 
+let giving = 0; // actions waiting for the reading of the library to stop
 async function work(kind, name, task) {
   // Reading the library gives way to anything the user starts.
-  if (busy?.kind === 'list' && kind !== 'list') { busy.abort(); await busy.over; }
+  // While it waits, no new reading starts (settle), so this action is not dropped.
+  if (busy?.kind === 'list' && kind !== 'list') { giving += 1; try { busy.abort(); await busy.over; } finally { giving -= 1; } }
   if (busy) return;
   const ctl = new AbortController();
   let ended;
@@ -168,7 +176,7 @@ function go(n) {
 const toMain = () => queueMicrotask(() => document.querySelector('main')?.focus({ preventScroll: true }));
 /** Starts whatever is needed, when nothing else is going on. */
 function settle() {
-  if (!channel || notice || (busy && busy.kind !== 'copy')) return;
+  if (!channel || notice || giving || (busy && busy.kind !== 'copy')) return;
   loadFacts();
   if (busy) return;
   if (step === 1 && !started && photosOpen) return goTo(0);
@@ -227,9 +235,83 @@ const authFor = (signal) => async (force) => {
 };
 function entered() {
   render();
-  if ([...records.values()].some((r) => r.state === 'uploaded' && r.channel === channel.id)) askYouTube();
   const key = params.get('key');
-  if (key && !single) setTimeout(() => openSingle(key));
+  const then = () => {
+    if (channel && [...records.values()].some((r) => r.state === 'uploaded' && r.channel === channel.id)) askYouTube();
+    if (key && !single) setTimeout(() => openSingle(key));
+  };
+  // Moved videos whose YouTube link was forgotten, or last found over 30 days ago: found on the channel first.
+  const f = toFind(records, channel.id);
+  // After the sign-in's own work has ended, so it can start.
+  if (f.again.length || f.refresh.length) setTimeout(() => findAgain([...f.again, ...f.refresh], f.again.length ? 'again' : 'refresh').then(then));
+  else then();
+}
+
+// ---- finding moved videos on the channel again (v43, matching as in v50)
+/**
+ * Looks for these moved videos among every upload of the channel. A record is linked only to the one
+ * video it matched exactly; one that is not found keeps no YouTube link, so the gate refuses it.
+ * Nothing is uploaded or deleted, at YouTube or in Google Photos. A failure changes no record.
+ */
+const findAgain = (keys, why) => work('find', 'Finding moved videos on YouTube', (signal) => exclusive(async () => {
+  if (!channel) return;
+  const ch = channel.id;
+  finding = { why, keys, at: 0, found: new Set(), missing: new Set() };
+  render();
+  try {
+    await yt.getToken(CLIENT_ID, false);
+    const uploads = await yt.listUploads(CLIENT_ID, ch);
+    signal.throwIfAborted();
+    if (ch !== channel?.id) return;
+    records = await allRecords();
+    const want = new Set(keys);
+    const taken = new Set([...records].filter(([k, r]) => !want.has(k) && r.id && r.channel === ch).map(([, r]) => r.id));
+    const hit = matchUploads(keys.map((k) => [k, records.get(k)]).filter(([, r]) => r), uploads, { channelId: ch, taken });
+    for (const key of keys) {
+      signal.throwIfAborted();
+      const r = await getRecord(key);
+      if (r?.state === 'uploaded' && !r.deletedAt) {
+        const id = hit.get(key);
+        if (id) {
+          await setRecord(key, relink(r, id, ch, new Date().toISOString()));
+          finding.found.add(key); notFound.delete(key); foundHere += 1;
+          log(`${r.fileName}: found on YouTube again.`);
+        } else {
+          // Not found exactly: whatever link it had is not kept, so it cannot be deleted here.
+          if (r.id) await setRecord(key, forgetYouTube(new Map([[key, r]])).get(key));
+          finding.missing.add(key); notFound.add(key);
+          log(`${r.fileName}: not found on YouTube (${gb(r.size)}).`);
+        }
+      }
+      finding.at += 1;
+      records = await allRecords();
+      render();
+    }
+  } catch (e) {
+    // The 30-day check is quiet: it is tried again next time, and no record changed.
+    if (why !== 'refresh' || signal.aborted) throw e;
+    log(`Checking moved videos on YouTube again did not work: ${e?.message ?? e}`);
+  } finally {
+    finding = null;
+    records = await allRecords();
+  }
+}));
+/** "Look again" in the pair of one that was not found. */
+const lookAgain1 = () => { const k = pairing; if (k) findAgain([k], 'one').then(() => askYouTube()); };
+/** "Move to YouTube again": the normal Move for this one video, a new upload. Its old record goes only after the yes. */
+async function moveAgain() {
+  const key = pairing;
+  const x = everything().find((y) => y.v.key === key);
+  if (!x || x.st.s !== 'again' || !notFound.has(key)) return;
+  await askMove([x], async () => {
+    try { await exclusive(() => removeRecord(key)); } catch (e) { notice = plainError(e?.message ?? e); render(); return false; }
+    log(`${x.v.fileName}: moved to YouTube again, as a new upload. Nothing was deleted anywhere.`);
+    records = await allRecords();
+    notFound.delete(key);
+    if (!videos.has(key)) videos.set(key, { key, fileName: x.v.fileName, size: x.v.size, timestamp: x.v.timestamp, single: true });
+    pairing = null;
+    return true;
+  });
 }
 
 // ---- the account menu
@@ -355,8 +437,10 @@ function everything() {
     const st = rowState(full, c);
     const facts = ['yt', 'held'].includes(st.s) ? factsOf({ v: full, st }) : [];
     const p = placeOf(st, facts, { queued: queued.has(v.key), ready: ready.has(v.key), gone: place.get(v.key) === 'gone' });
+    // Looked for on the channel in this visit, and not found: it needs the user (E37).
+    const p1 = st.s === 'again' && notFound.has(v.key) ? 'look' : p;
     // After Stop, what is still ticked waits to continue in step 2: in step 1 it is a faded "Going to YouTube" tile.
-    out.push({ v: full, st, p: shownPlace(p, { queued: queued.has(v.key), ticked: sel.has(v.key), running: !!run?.has(v.key), marked: !full.record && marks.has(v.key) }) });
+    out.push({ v: full, st, p: shownPlace(p1, { queued: queued.has(v.key), ticked: sel.has(v.key), running: !!run?.has(v.key), marked: !full.record && marks.has(v.key) }) });
   };
   for (const v of videos.values()) put(v, true);
   // A record marked as deleted only counts again if Google Photos lists the video.
@@ -496,13 +580,14 @@ const WHO = [
 ];
 const visIcon = (v) => WHO.find((o) => o.value === v)?.icon ?? 'yt';
 /** The Move button in step 1: asks who can watch them, every time, then moves exactly the ones ticked when it was pressed. */
-async function askMove() {
+async function askMove(only = null, before = null) {
   if (dialog || run || (busy && busy.kind !== 'list')) return;
   sentBar = null;
   putBar = null;
   plus = null; // the "+N" goes at the next press
   render();
-  const list = picked().move; // frozen now: exactly these move
+  // `only` (else what is ticked) is frozen now: exactly these move. `before` runs after the yes, and may still say no.
+  const list = only ?? picked().move;
   const keys = list.map((x) => x.v.key);
   if (!keys.length) return;
   const size = sum(list);
@@ -524,6 +609,7 @@ async function askMove() {
     });
   } finally { dialog = false; }
   if (!got || run || (busy && busy.kind !== 'list')) return;
+  if (before && !await before()) return;
   const who = got.who;
   // Remembered in this Chrome for the next Move: the words and the box, nothing else.
   chrome.storage.local.set({ [TITLE_SET]: { words: got.setting.words, date: got.setting.date } }).catch(() => {});
@@ -635,7 +721,7 @@ async function loadFacts() {
   } finally { loading = false; }
 }
 
-const WORDS = { same: ['check', 'Same', 'c-ok'], fine: ['check', 'Fine', 'c-ok'], wait: ['clock', 'Not yet', 'c-q'], none: ['info', 'Not checked', 'c-q'], diff: ['fail', 'Different', 'c-stop'], shared: ['held', 'Shared', 'c-q'], nothere: ['fail', 'Not there', 'c-q'], unknown: ['info', 'Not known', 'c-q'], more: ['check', 'More private', 'c-ok'], asyou: ['check', 'As you chose', 'c-ok'] };
+const WORDS = { same: ['check', 'Same', 'c-ok'], fine: ['check', 'Fine', 'c-ok'], wait: ['clock', 'Not yet', 'c-q'], none: ['info', 'Not checked', 'c-q'], diff: ['fail', 'Different', 'c-stop'], shared: ['held', 'Shared', 'c-q'], nothere: ['fail', 'Not there', 'c-q'], unknown: ['info', 'Not known', 'c-q'], notfound: ['fail', 'Not found', 'c-q'], more: ['check', 'More private', 'c-ok'], asyou: ['check', 'As you chose', 'c-ok'] };
 const word = (m) => WORDS[m] ?? WORDS.unknown; // a value this page does not know is never shown as fine
 /** Who can watch the YouTube copy, as chosen and as YouTube last said: null while YouTube has not answered about it. */
 const visOf = (v) => { const video = v.record?.id ? statuses.get(v.record.id) : null; return video ? visibility(v.record, video) : null; };
@@ -653,6 +739,7 @@ function verdict(x) {
     return open.length ? out('check', 'c-safe', 'Every check passed.', `${names(open)} ${open.length === 1 ? 'is' : 'are'} not checked.`)
       : out('check', 'c-safe', 'All the same.', [gb(v.size), Number.isFinite(v.timestamp) ? day(v.timestamp) : ''].filter(Boolean).join(', '));
   }
+  if (lostOnYT(x)) return out('ask', 'c-wait', 'Not found on YouTube.', `No video on ${channel?.title ?? 'your channel'} is this file: ${v.fileName}, ${gb(v.size)}.`);
   if (p === 'look') {
     if (st.s === 'ask') return out('info', 'c-wait', 'Please look.', 'YouTube cannot say whether it arrived. If it is there, leave it.');
     if (st.s === 'stop') return out('fail', 'c-stop', 'Please look.', [st.word === 'Missing on YouTube' ? 'YouTube does not list this video.' : `${st.word}.`, st.ax].join(' '));
@@ -1117,8 +1204,8 @@ function paintBar(all) {
   const n3 = onYouTube(all).length + [...marks].filter(([k]) => !records.has(k)).length;
   const subs = [
     busy?.kind === 'list' ? `${n1} so far` : started || n1 ? (n1 ? count(n1) : 'Nothing left') : 'Not read yet',
-    run ? (want ? 'Paused' : `${pct()}%`) : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : waiting(all).length ? 'Stopped' : rows2.some(withYouTube) ? 'YouTube working' : 'Nothing to do',
-    busy?.kind === 'trash' ? 'Deleting' : lock() ? 'Look first' : n3 ? count(n3) : trashed ? 'Nothing left' : 'Nothing yet',
+    run ? (want ? 'Paused' : `${pct()}%`) : finding ? `Finding ${finding.keys.length}` : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : waiting(all).length ? 'Stopped' : rows2.some(withYouTube) ? 'YouTube working' : 'Nothing to do',
+    busy?.kind === 'trash' ? 'Deleting' : lock() ? 'Look first' : finding ? `${n3} so far` : n3 ? count(n3) : trashed ? 'Nothing left' : 'Nothing yet',
   ];
   // Keyed, so the "+N" pops once when it appears, not again at each redraw. The current step is set on the
   // buttons already there first, so a step change does not draw them (and the chip) anew.
@@ -1454,12 +1541,20 @@ const waiting = (all) => (run ? [] : moveRows(all).filter((x) => x.p === 'moving
 const withYouTube = (x) => x.p === 'working' && (x.st.s === 'proc' || x.st.s === 'sent' && !(askFailed && !asking) && cameNew.has(x.v.key));
 /** How far YouTube is with it: { pct, leftMs } as YouTube said (never lower than before), or null. */
 const ytAt = (x) => (x.v.record?.id && best.get(x.v.record.id)) || null;
+/** Looked for on the channel in this visit, and not found there (E37, E38). */
+const lostOnYT = (x) => x.st.s === 'again' && notFound.has(x.v.key);
 /** The one state under a picture. */
 function caption(x) {
   const { st, p, v } = x;
   const out = (kind, text, tone, part, more = {}) => ({ kind, text, tone, part, ...more });
   const part = run?.get(v.key)?.part;
   const n = Math.floor((part ?? 0) * 100);
+  if (finding?.keys.includes(v.key)) {
+    if (finding.found.has(v.key)) return out('check', 'Found', 'c-safe');
+    if (finding.missing.has(v.key)) return out('ask', 'Not found on YouTube', 'c-wait');
+    return finding.keys.indexOf(v.key) === finding.at ? out('clock', 'Looking on YouTube', 'c-yt') : out('clock', 'Waiting to look', 'mute');
+  }
+  if (lostOnYT(x)) return out('ask', 'Not found on YouTube', 'c-wait');
   if (p === 'look') return out('ask', 'Please look', 'c-wait');
   if (p === 'lost') return out('fail', 'It did not arrive', 'c-stop');
   if (p === 'moving') return part === undefined ? out('up', 'Waiting', 'mute') : st.s === 'pause' ? out('up', `Paused at ${n}%`, 'c-wait', n) : out('up', `Uploading ${n}%`, 'c-go', n);
@@ -1559,6 +1654,7 @@ function moveBody(all) {
   const seen = pairing && all.find((x) => x.v.key === pairing && x.p !== 'choose');
   if (seen) return pairView(seen);
   if (notice && !run && !lastRun?.halted) return noticeView();
+  if (finding && !run) return findView(all);
   if (!list.length) return calm('quiet', 'check', 'c-safe', 'Nothing needs you here.', 'What you move shows its progress here. What passes every check goes to Delete by itself.', nextFoot(all, note(goneNote)));
   const of = (p) => list.filter((x) => x.p === p);
   const withYT = list.filter(withYouTube);
@@ -1588,6 +1684,9 @@ function moveBody(all) {
     const cont = why?.action === 'photos' && photosOpen === false ? foot(left, 'photos3', 'Open Google Photos', openPhotos)
       : foot(left, 'continue', `Continue with ${wait.length}`, () => startMove(waiting(everything()).map((x) => x.v.key)), { off: why?.kind === 'clock' ? 'Try again tomorrow.' : off });
     v = { head: why ? why.title : w.head, sub: why ? why.text : w.sub, n: t.pct, isHeld: true, small: w.small, foot: cont };
+  } else if (notFound.size && !(askFailed && !asking)) {
+    const nf = list.filter(lostOnYT).length;
+    v = { head: `${foundHere} found on YouTube. ${nf} ${nf === 1 ? 'was' : 'were'} not found.`, sub: 'The found ones are back where they were.', foot: nextFoot(all, note('You can close this page and come back later.')) };
   } else if (askFailed && !asking) {
     v = { head: 'Nothing is confirmed right now.', sub: 'YouTube did not answer.', foot: foot(note('Nothing moves on until it answers.'), 'askagain', 'Try again', askAgain, { off: busy && busy.kind !== 'list' ? 'Wait a moment.' : '' }) };
   } else {
@@ -1613,10 +1712,29 @@ function moveBody(all) {
       h('div', { class: 'ttl', 'data-key': 'ttl', 'data-deep': true }, h('h1', null, v.head), v.sub ? h('span', { class: 'mute' }, v.sub) : null, v.live ?? null,
         v.slow ? h('p', { class: 'vwarn slowp', 'data-key': 'slow' }, mark('info', 20), h('span', null, v.slow)) : null),
       v.n === undefined ? null : h('div', { class: 'line g16 barline' }, h('span', { class: 'pc' }, `${v.n}%`),
-        h('div', { class: `prog${v.isHeld ? ' held' : ''}`, role: 'progressbar', 'aria-label': 'Uploaded', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(v.n) }, h('span', { style: `width:${v.n}%` })),
+        h('div', { class: `prog${v.isHeld ? ' held' : ''}`, role: 'progressbar', 'aria-label': v.barLabel ?? 'Uploaded', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(v.n) }, h('span', { style: `width:${v.n}%` })),
         v.small ? h('span', { class: 'mute sm' }, v.small) : null)),
     h('ul', { class: 'grid five5', 'data-key': 'mgrid', 'data-deep': true }, list.map(moveTile))),
     v.foot,
+  ];
+}
+/** E36: finding them on the channel again, after a new sign-in or the 30-day check. Only the ones looked for. */
+function findView(all) {
+  const f = finding;
+  const list = f.keys.map((k) => all.find((x) => x.v.key === k)).filter(Boolean);
+  const n = Math.round((f.at / Math.max(1, f.keys.length)) * 100);
+  const again = f.why === 'refresh'
+    ? { head: 'Checking your moved videos on YouTube again', sub: 'Every 30 days each one is found on your channel again before it can be deleted.' }
+    : { head: 'Finding your moved videos on YouTube', sub: 'You signed in again, so each one is found on your channel before it can be deleted.' };
+  loadThumbs(list.slice(0, 40)).catch(() => {});
+  return [
+    main('move', 's2', h('div', { class: 'stack g16', 'data-key': 'top', 'data-deep': true },
+      h('div', { class: 'ttl', 'data-key': 'ttl', 'data-deep': true }, h('h1', null, again.head), h('span', { class: 'mute' }, again.sub)),
+      h('div', { class: 'line g16 barline' }, h('span', { class: 'pc' }, `${n}%`),
+        h('div', { class: 'prog', role: 'progressbar', 'aria-label': 'Looked for', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(n) }, h('span', { style: `width:${n}%` })),
+        h('span', { class: 'mute sm' }, `${f.at} of ${f.keys.length} looked for`))),
+    h('ul', { class: 'grid five5', 'data-key': 'fgrid', 'data-deep': true }, list.map(moveTile))),
+    nextFoot(all, note('Nothing is uploaded or deleted while it looks.'), { sec: true }),
   ];
 }
 function moveTile(x) {
@@ -1644,10 +1762,11 @@ function pairView(x) {
   const { v, st, p } = x;
   const video = statuses.get(v.record?.id);
   const f = verdict(x);
-  const facts = factsOf(x);
+  const lost = lostOnYT(x); // E38: not found on the channel
+  const facts = lost ? factsOf(x).map((t) => ({ ...t, b: '—', m: 'notfound' })) : factsOf(x);
   const len = isoLength(video?.contentDetails?.duration);
   const idle = !busy || busy.kind === 'list';
-  const none = st.s === 'again' ? 'Not found on YouTube yet.' : st.s === 'ask' ? 'Nobody knows yet whether it is there.' : st.s === 'fail' && !v.record || st.s === 'stop' && !video ? 'It is not on YouTube.' : ['up', 'wait', 'pause', 'lib', 'cut', 'fail'].includes(st.s) ? 'It is not there yet.'
+  const none = lost ? 'It may have been deleted on YouTube.' : st.s === 'again' ? 'Not found on YouTube yet.' : st.s === 'ask' ? 'Nobody knows yet whether it is there.' : st.s === 'fail' && !v.record || st.s === 'stop' && !video ? 'It is not on YouTube.' : ['up', 'wait', 'pause', 'lib', 'cut', 'fail'].includes(st.s) ? 'It is not there yet.'
     : st.s === 'sent' ? 'YouTube has not answered about it.' : st.s === 'proc' ? 'YouTube is still working on it.' : !ytReady(video) ? 'YouTube has nothing to play.' : '';
   const vis = visOf(v);
   const drift = vis?.way === 'less'; // made less private outside this app
@@ -1655,7 +1774,7 @@ function pairView(x) {
   const not = can ? lock() ? 'Look in the trash first.' : otherwork() : '';
   const studio = v.record?.id ? `https://studio.youtube.com/video/${v.record.id}/edit` : 'https://studio.youtube.com/';
   const kept = can && vis?.way === 'more' ? `YouTube kept it ${visName(vis.actual)}, not ${visName(vis.chosen)}. That is safer, so it can still be deleted. ` : '';
-  const side = drift ? `Set it back to ${visName(vis.chosen)} in YouTube Studio, then check again.` : not || (can ? `${kept}The YouTube copy stays.` : '');
+  const side = lost ? `It stays in Google Photos and cannot be deleted here. Changed its description on YouTube? Put back the line “${originalLine(v.fileName)}”, then look again.` : drift ? `Set it back to ${visName(vis.chosen)} in YouTube Studio, then check again.` : not || (can ? `${kept}The YouTube copy stays.` : '');
   return [
     main('pair', 'watch', h('div', { class: 'ttl' }, h('span', { class: f.tone, style: 'align-self:center' }, mark(f.kind, 30)), h('h1', null, f.title), h('span', { class: 'mute', title: v.fileName ?? null }, f.why), shut()),
       h('section', { class: 'cmp p2', 'aria-label': 'The two copies', 'data-key': `cmp-${v.key}`, 'data-deep': true },
@@ -1667,6 +1786,7 @@ function pairView(x) {
       drift ? link('btn', 'Open YouTube Studio', studio, { 'data-f': 'studio' }) : null,
       can ? button('pdel', 'btn', `Delete from Google Photos, ${gb(v.size)}`, () => { const k = pick = pairing; trashIt().then(() => { if (pick !== k) picks.delete(k); }); }, { disabled: !!not }) : null,
       st.s === 'ask' ? [button('notthere', 'btn sec', 'It is not there', clearUncertain, { disabled: !idle }), drift ? null : link('btn', 'Open YouTube Studio', studio)] : null,
+      lost ? [button('lookagain', 'btn sec', 'Look again', lookAgain1, { disabled: !idle }), button('moveagain', 'btn', 'Move to YouTube again', moveAgain, { disabled: !idle || !!run })] : null,
       p === 'lost' ? button('redo', 'btn', 'Try again', () => { const k = pairing; pairing = null; startMove([k]); }, { disabled: !idle }) : null),
   ];
 }

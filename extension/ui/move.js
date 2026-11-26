@@ -104,7 +104,10 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
       draft = null;
       show('main', '[data-f=tchange]');
     }
-    d.oncancel = (e) => { if (page !== 'main') { e.preventDefault(); back(); } };
+    // Handled here, so the browser never closes the box by itself on a second Esc.
+    const esc = (e) => { e.preventDefault(); if (page !== 'main') back(); else d.close(''); };
+    d.onkeydown = (e) => { if (e.key === 'Escape') esc(e); };
+    d.oncancel = esc;
 
     let answer = null;
     function finish() {
