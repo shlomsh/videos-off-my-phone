@@ -209,6 +209,8 @@ function entered() {
 
 // ---- the account menu
 const TERMS = 'https://www.youtube.com/t/terms';
+/** This build's version, from manifest.json; "test copy" outside the Web Store zip. */
+const VERSION = `Version ${chrome.runtime.getManifest().version}${STORE_BUILD ? '' : ', test copy'}`;
 const midWork = () => !!busy && busy.kind !== 'list';
 /** A fresh page, signed out: nothing this visit learned from YouTube stays in memory. */
 const freshStart = () => location.replace(`app.html${params.get('tab') ? `?tab=${encodeURIComponent(params.get('tab'))}` : ''}`);
@@ -1058,6 +1060,7 @@ function paintBar(all) {
     menuItem('revoke', 'no', 'Remove access', 'Google stops this app from using your channel.', removeAccess, off),
     STORE_BUILD ? null : [h('hr'), menuItem('finish', 'lib', 'Switching to the Web Store version?', 'What to finish here first. Only in this test copy.', finishFirst)],
     h('div', { class: 'pl sm' }, link('lnk', 'Privacy policy', PRIVACY_URL), ' · ', link('lnk', 'YouTube Terms of Service', TERMS)),
+    h('p', { class: 'appver', 'data-f': 'version' }, VERSION),
   ] : []);
 }
 
@@ -1073,7 +1076,7 @@ function startView() {
     restoring && !busy ? h('p', { class: 'sm mute', role: 'status' }, 'Signing you in quietly…') : null,
     h('p', { class: 'sm mute' }, 'Google asks for two permissions: tick both. You choose who can watch: only you, people with the link, or everyone. Deleting moves a video to the Google Photos trash, where you can restore it for 30 days. No ads, no account with us, no server of ours.'),
     h('p', { class: 'sm mute' }, 'By signing in you agree to the ', link('', 'YouTube Terms of Service', TERMS), '. ', link('', 'Privacy policy', PRIVACY_URL), '.'),
-    h('p', { class: 'tm' }, 'Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.'));
+    h('p', { class: 'tm' }, 'Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google. ', h('span', { 'data-f': 'version' }, `${VERSION}.`)));
 }
 /** Gmail, Drive and Photos share the Google storage; the YouTube channel is outside it. Plain colours, no logos. */
 function quotaPicture() {
