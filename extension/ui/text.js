@@ -26,6 +26,26 @@ export const PLAYER = {
   choose: { title: 'What should happen to this video?', bare: 'Skip YouTube, send to Delete', copy: 'Move to YouTube' },
   del: { title: 'Delete it, or move it to YouTube first?', bare: 'Delete from Google Photos', copy: 'Move to YouTube first', facts: 'It has no YouTube copy.', note: 'It has no YouTube copy. Deleting asks you first.' },
 };
+/**
+ * Step 2 after Stop (canvas v53, board XE-stopped): `waiting` still wait to continue; `up` of `total`
+ * (the videos moved together when it stopped) are on YouTube. The heading counts only the waiting ones,
+ * and stays the same after other videos were moved since.
+ */
+export function stoppedWords({ waiting, up, total }) {
+  return {
+    head: `You stopped. ${count(waiting)} ${waiting === 1 ? 'is' : 'are'} waiting.`,
+    sub: `${up} of ${total} ${up === 1 ? 'is' : 'are'} on YouTube.`,
+    small: `${up} of ${total} sent`,
+  };
+}
+/** The stopped page's words about the half-sent one, the waiting ones, and "Put them back in Choose" (v53). */
+export const STOPPED = {
+  note: 'The half-sent one carries on where it stopped.',
+  half: 'It was half sent. It carries on where it stopped.',
+  waits: 'It waits until you continue.',
+  back: 'Put them back in Choose',
+  bar: (n) => `${n} put back in Choose.`,
+};
 /** Step 3 while the videos chosen earlier are still being read: the grey button and its reason. */
 export const READING = { button: 'Delete from Google Photos', why: 'Still reading your videos.' };
 /** The words on the done page that follow how many videos it is about: it or them, and the iPhone's question. */

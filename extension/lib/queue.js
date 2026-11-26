@@ -39,9 +39,7 @@ async function uploadOne(key, d, { signal, onState }) {
     if (before.channel !== d.channelId) throw new Error('An earlier upload was started on another channel.');
     const p = await d.probe(before);
     if (p.state === 'finished') {
-      // Really on YouTube, but this run did not hash it, so the gate holds it back.
-      const { sessionUri, ...rest } = before;
-      await d.setRecord(key, { ...rest, state: 'uploaded', id: p.id, sha256: null, at: d.now() });
+      await d.setRecord(key, recovered(before, p.id, d.now()));
       onState(key, 'Already on YouTube (recovered)');
       return 'recovered';
     }
@@ -74,4 +72,26 @@ async function uploadOne(key, d, { signal, onState }) {
   await d.setRecord(key, { state: 'uploaded', id: r.video.id, sha256: r.sha256, size: r.bytes, fileName: details.fileName, channel: d.channelId, privacy, at: d.now() });
   onState(key, 'Uploaded');
   return 'uploaded';
+}
+
+/** An interrupted upload that YouTube says is complete. This app did not hash it, so the gate holds it back. */
+function recovered(before, id, at) {
+  const { sessionUri, ...rest } = before;
+  return { ...rest, state: 'uploaded', id, sha256: null, at };
+}
+
+/**
+ * What "Put them back in Choose" does with a half-sent upload, from YouTube's answer about it
+ * (probeSession, or null when YouTube could not be asked):
+ *   drop   YouTube holds only part of it: the record goes, so a later Move starts over.
+ *   keep   YouTube has all of it: it stays, as uploaded (`record`), and the gate still holds it back.
+ *   leave  anything else (expired, every byte there but not finished, not asked, another channel,
+ *          not a half-sent record): nothing changes, and it still waits to continue.
+ */
+export function putBackPlan(record, probe, channelId, at) {
+  if (record?.state !== 'sending' || !record.sessionUri || !(record.size > 0)) return { do: 'leave' };
+  if (!channelId || record.channel !== channelId) return { do: 'leave' };
+  if (probe?.state === 'finished' && probe.id) return { do: 'keep', record: recovered(record, probe.id, at) };
+  if (probe?.state === 'incomplete' && Number.isInteger(probe.offset) && probe.offset >= 0 && probe.offset < record.size) return { do: 'drop' };
+  return { do: 'leave' };
 }

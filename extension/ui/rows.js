@@ -196,3 +196,19 @@ export function gridPicks(rows, sel, decided = () => false) {
   const move = rows.filter((x) => x.p === 'choose' && sel.has(x.v.key) && canCopy(x.st.s) && !decided(x));
   return { move, send: move.filter((x) => !x.v.record) };
 }
+
+/**
+ * How far the videos moved together got before Stop (v53): `keys` are those videos, `of(key)` gives
+ * { size, up (on YouTube), half (still half sent) }, and `part` the bytes YouTube held of the half-sent
+ * one when it stopped ({ key, bytes }). Returns { up, total, pct }; pct is by bytes, never above 100.
+ */
+export function stopTally(keys, of, part = null) {
+  let up = 0; let all = 0; let got = 0;
+  for (const k of new Set(keys)) {
+    const x = of(k) ?? {};
+    const size = x.size > 0 ? x.size : 0;
+    all += size;
+    if (x.up) { up += 1; got += size; } else if (x.half && part?.key === k) got += Math.min(Math.max(0, part.bytes || 0), size);
+  }
+  return { up, total: new Set(keys).size, pct: all ? Math.floor(Math.min(1, got / all) * 100) : 0 };
+}
