@@ -1173,7 +1173,10 @@ function sendPicked() {
   plus = { n: keys.length, seq };
   log(`${count(keys.length)} sent to Delete with no YouTube copy.`);
   render();
+  focusOn('undosend'); // the bar's Undo, not the top of the page
 }
+/** Puts the keyboard on a control once the page is drawn, if it is there and can be used. */
+const focusOn = (f) => queueMicrotask(() => { const b = document.querySelector(`[data-f="${CSS.escape(f)}"]`); if (b && !b.disabled) b.focus({ preventScroll: true }); });
 /** Puts back the same ticks. */
 function undoSend() {
   const b = sentBar;
@@ -1182,6 +1185,7 @@ function undoSend() {
   sentBar = null;
   plus = null;
   render();
+  focusOn('senddel');
 }
 function chooseView(all) {
   if (notice && !lastRun?.halted) return noticeView();
@@ -1321,8 +1325,9 @@ function endStamp() {
   if (step !== 1 || watching !== key) return render(); // the page moved on meanwhile
   const now = pile();
   const keep = said;
+  const f = document.activeElement?.dataset?.f; // where the keyboard is: the answer just given, unless the user moved on
   const to = now.find((x) => x.v.key === next) ?? now[Math.min(Math.max(0, list.findIndex((x) => x.v.key === key)), now.length - 1)];
-  if (to) { watch(to.v.key); said = keep; render(); } else leaveWatch();
+  if (to) { watch(to.v.key); said = keep; render(); if (f) focusOn(f); } else leaveWatch();
 }
 function dropStamp() {
   if (!stamp) return;
@@ -1644,8 +1649,10 @@ function lockView(l) {
 addEventListener('picture-failed', render);
 addEventListener('resize', render);
 addEventListener('keydown', (e) => {
-  // Right after an answer in the player, any key only ends the moment (Enter or Space do not answer again).
-  if (stamp && !e.metaKey && !e.ctrlKey && !e.altKey && !['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'].includes(e.key) && !document.querySelector('dialog[open],:popover-open')) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) endStamp(); return; }
+  // A held key never answers for the next videos too, now that the keyboard stays on the answer.
+  if (e.repeat && ['Enter', ' '].includes(e.key) && e.target.closest?.('[data-f=wbare],[data-f=wtick]')) { e.preventDefault(); return; }
+  // Right after an answer in the player, any key only ends the moment (Enter or Space do not answer again). Tab still moves on.
+  if (stamp && !e.metaKey && !e.ctrlKey && !e.altKey && !['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab'].includes(e.key) && !document.querySelector('dialog[open],:popover-open')) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) endStamp(); return; }
   if (!(watching || pairing) || e.altKey || e.metaKey || e.ctrlKey || document.fullscreenElement || /^(INPUT|SELECT)$/.test(e.target.tagName) || document.querySelector('dialog[open],:popover-open')) return;
   const act = { Escape: leaveWatch, ArrowLeft: () => turnTo(-1), ArrowRight: () => turnTo(1) }[e.key];
   if (act && (watching || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); return act(); } // also after a click on the player, which would seek
