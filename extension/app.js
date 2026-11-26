@@ -1626,6 +1626,13 @@ const lostOnYT = (x) => x.st.s === 'again' && notFound.has(x.v.key);
 /** Why it stays in Google Photos: in a shared album, or its upload broke off and it was never checked from start to end. */
 const isShared = (x) => x.p === 'stays' && /shared album/.test(x.st.ax ?? '');
 const isBroke = (x) => x.p === 'stays' && !isShared(x) && /start to end/.test(x.st.ax ?? '');
+const isChannel = (x) => x.p === 'stays' && x.st.s !== 'again' && /another channel/i.test(x.st.word ?? '');
+/** Why these stay, counted for stayWords (v55a). "Moved before" ones are not on YouTube as far as known, so not counted. */
+const whyStay = (rows) => {
+  const on = rows.filter((x) => x.p === 'stays' && x.st.s !== 'again');
+  const [shared, broke, channel] = [on.filter(isShared).length, on.filter(isBroke).length, on.filter(isChannel).length];
+  return { shared, broke, channel, other: on.length - shared - broke - channel };
+};
 /** The one state under a picture. */
 function caption(x) {
   const { st, p, v } = x;
@@ -1643,9 +1650,9 @@ function caption(x) {
   if (p === 'moving') return part === undefined ? out('up', 'Waiting', 'mute') : st.s === 'pause' ? out('up', `Paused at ${n}%`, 'c-wait', n) : out('up', `Uploading ${n}%`, 'c-go', n);
   if (st.s === 'again') return out('info', 'Moved before', 'mute');
   if (p === 'stays') {
-    if (/another channel/i.test(st.word)) return out('info', 'Stays: another channel', 'mute');
-    // v55: the same words as the Choose grid (v52), with the reason under them.
-    return isShared(x) ? out('held', STAYS.text, 'mute', undefined, { sub: STAYS.shared, wrap: true }) : out('info', STAYS.text, 'mute', undefined, isBroke(x) ? { sub: STAYS.broke, wrap: true } : {});
+    // v55, v55a: the same words as the Choose grid (v52), with the reason under them.
+    if (isChannel(x)) return out('info', STAYS.text, 'mute', undefined, { sub: STAYS.channel, wrap: true });
+    return isShared(x) ? out('held', STAYS.text, 'mute', undefined, { sub: STAYS.shared, wrap: true }) : out('info', STAYS.text, 'mute', undefined, { sub: isBroke(x) ? STAYS.broke : STAYS.also, wrap: true });
   }
   if (withYouTube(x)) {
     // A known % fills the bar; without one, the bar is striped and the line counts up from the upload.
@@ -1786,17 +1793,19 @@ function moveBody(all) {
     const nf = list.filter(lostOnYT).length; // looked for on the channel in this visit, not found (E37)
     // v55 (E50, E51): what of this move stays in Google Photos, and why; and what of it went on to Delete.
     const mv = thisMove();
-    const kept = all.filter((x) => mv.has(x.v.key) && x.p === 'stays');
-    const sw = stayWords({ went: onYouTube(all).filter((x) => mv.has(x.v.key)).length, shared: kept.filter(isShared).length, broke: kept.filter(isBroke).length });
+    const sw = stayWords({ went: onYouTube(all).filter((x) => mv.has(x.v.key)).length, ...whyStay(all.filter((x) => mv.has(x.v.key))) });
+    // v55a (4b): never "Nothing needs you here" while step 2 shows only videos that stay, whatever the visit.
+    const sw2 = !sw && list.every((x) => x.p === 'stays' && x.st.s !== 'again') ? stayWords(whyStay(list)) : null;
     v = nf ? { head: `${foundHere} found on YouTube. ${nf} ${nf === 1 ? 'was' : 'were'} not found.`, sub: 'The found ones are back where they were.' }
       : lost && ended ? { head: `Uploading is finished. ${lost} did not arrive.`, sub: work_ ? go_.replace('They', 'The others') : '' }
       : work_ ? { head: `YouTube is working on ${count(work_)}.`, sub: work_ === 1 ? 'It moves on to Delete by itself.' : go_ }
         : open ? { head: asking ? 'Asking YouTube…' : 'Comparing the copies…', sub: '' }
           : look + lost ? { head: `${count(look + lost)} ${look + lost === 1 ? 'needs' : 'need'} you.`, sub: '' }
-            : sw ? { head: sw.head, sub: sw.sub, stays: true }
-              : { head: 'Nothing needs you here.', sub: wait.length ? '' : `${count(list.length)} ${list.length === 1 ? 'stays' : 'stay'} in Google Photos.` };
+            : sw ? { head: sw.head, sub: sw.sub, note: sw.note, stays: true }
+              : sw2 ? { head: sw2.head, sub: sw2.sub, note: sw2.note }
+                : { head: 'Nothing needs you here.', sub: wait.length ? '' : `${count(list.length)} ${list.length === 1 ? 'stays' : 'stay'} in Google Photos.` };
     v.foot = photosOpen === false && open ? foot(note(later), 'photos3', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' })
-      : nextFoot(all, v.stays ? [later, sw.note].filter(Boolean).join(' ') : nf ? [goneNote, 'You can close this page and come back later.'].filter(Boolean).join(' ') : later, { sec: !!work_ && !nf, stays: !!v.stays });
+      : nextFoot(all, v.note !== undefined ? [later, v.note].filter(Boolean).join(' ') : nf ? [goneNote, 'You can close this page and come back later.'].filter(Boolean).join(' ') : later, { sec: !!work_ && !nf, stays: !!v.stays });
     if (work_) {
       v.live = liveLine();
       if (withYT.some((x) => isSlow(x.v.record?.at))) v.slow = SLOW_NOTE;

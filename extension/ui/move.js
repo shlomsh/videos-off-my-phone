@@ -61,7 +61,7 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
         const inAlbum = known ? left.filter((v) => known.has(v.key)) : [];
         const w = sharedWords(inAlbum.length, left.length);
         box2.replaceChildren(...(w ? [h('p', { class: 'vwarn' }, icon('held', 20), h('span', { class: 'stack' }, h('span', { 'data-f': 'shline' }, w.line),
-          h('span', null, h('button', { type: 'button', class: 'btn sec sml', 'data-f': 'leaveout', onclick: () => leaveOut(inAlbum.map((v) => v.key)) }, w.leave))))] : []));
+          w.leave ? h('span', null, h('button', { type: 'button', class: 'btn sec sml', 'data-f': 'leaveout', onclick: () => leaveOut(inAlbum.map((v) => v.key)) }, w.leave)) : null))] : []));
         go.disabled = reading || !left.length;
         if (reading) go.setAttribute('aria-busy', 'true'); else go.removeAttribute('aria-busy');
       };
@@ -141,7 +141,7 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
     d.oncancel = esc;
 
     // "Leave those N out": they leave this box and are unticked; the counts follow, and the box stays open.
-    // When that leaves nothing, there is no line and the Move button is off; Cancel has the keyboard.
+    // It is offered only when some are not in a shared album (v55a, E53), so something is always left.
     function leaveOut(keys) {
       for (const k of keys) out.add(k);
       leave(keys);

@@ -32,7 +32,9 @@ test('the other reason to stay: the upload broke off', () => {
   assert.equal(stayWords({ broke: 2 }).sub, 'The uploads broke off, so they were never checked from start to end.');
   assert.equal(stayWords({ went: 1, broke: 1 }).sub, 'The upload broke off, so it was never checked from start to end.');
   // Both reasons in one move: each sentence counts its own.
-  assert.equal(stayWords({ shared: 1, broke: 1 }).sub, '1 is in a shared album. Deleting it would take it out of that album for everyone. For 1, the upload broke off, so it was never checked from start to end.');
+  // Both reasons in one move (v55a, E54).
+  assert.equal(stayWords({ shared: 1, broke: 1 }).sub, '1 is in a shared album, so deleting it would take it out of that album for everyone. 1 was never checked from start to end, because its upload broke off.');
+  assert.equal(stayWords({ shared: 2, broke: 2 }).sub, '2 are in a shared album, so deleting them would take them out of that album for everyone. 2 were never checked from start to end, because their uploads broke off.');
   assert.equal(stayWords({ shared: 1, broke: 1 }).head, 'Both are on YouTube. Google Photos keeps them.');
 });
 
@@ -63,16 +65,29 @@ test('the main button never counts videos from earlier moves', () => {
 
 test('E52: the Move dialog line about shared albums', () => {
   assert.deepEqual(sharedWords(2, 6), { line: '2 of these 6 are in a shared album. They will be on YouTube too, but Google Photos keeps them, so they free no space.', leave: 'Leave those 2 out' });
-  assert.deepEqual(sharedWords(1, 6), { line: '1 of these 6 is in a shared album. It will be on YouTube too, but Google Photos keeps it, so it frees no space.', leave: 'Leave that 1 out' });
-  // All ticked: they can still be left out; the box then has nothing.
-  assert.deepEqual(sharedWords(2, 2), { line: 'Both are in a shared album. They will be on YouTube too, but Google Photos keeps them, so they free no space.', leave: 'Leave those 2 out' });
-  assert.deepEqual(sharedWords(6, 6), { line: 'All 6 are in a shared album. They will be on YouTube too, but Google Photos keeps them, so they free no space.', leave: 'Leave those 6 out' });
-  assert.equal(sharedWords(1, 1).leave, 'Leave that 1 out');
+  assert.deepEqual(sharedWords(1, 6), { line: '1 of these 6 is in a shared album. It will be on YouTube too, but Google Photos keeps it, so it frees no space.', leave: 'Leave it out' });
+  // All ticked (v55a, E53): no Leave button, it would leave the box with nothing.
+  assert.deepEqual(sharedWords(2, 2), { line: 'Both are in a shared album. They will be on YouTube too, but Google Photos keeps them, so they free no space.', leave: null });
+  assert.deepEqual(sharedWords(6, 6), { line: 'All 6 are in a shared album. They will be on YouTube too, but Google Photos keeps them, so they free no space.', leave: null });
+  assert.equal(sharedWords(1, 1).leave, null);
   assert.equal(sharedWords(1, 1).line, 'It is in a shared album. It will be on YouTube too, but Google Photos keeps it, so it frees no space.');
   assert.equal(sharedWords(0, 6), null);
   assert.equal(sharedWords(0, 0), null);
 });
 
 test('step 2 tiles say what the Choose grid says, and why', () => {
-  assert.deepEqual(STAYS, { text: 'Stays in Google Photos', shared: 'Shared album. Also on YouTube.', broke: 'Not fully checked. Also on YouTube.' });
+  assert.deepEqual(STAYS, { text: 'Stays in Google Photos', shared: 'Shared album. Also on YouTube.', broke: 'Not fully checked. Also on YouTube.', also: 'Also on YouTube.', channel: 'On another YouTube channel.' });
+});
+
+test('v55a 4b: step 2 with only videos that stay, with no move this visit, uses the E50 heading and a reason', () => {
+  assert.deepEqual(stayWords({ broke: 1 }), { head: 'It is on YouTube. Google Photos keeps it.', sub: 'The upload broke off, so it was never checked from start to end.', note: 'Nothing more to do for this one.' });
+  assert.equal(stayWords({ shared: 3 }).head, 'All 3 are on YouTube. Google Photos keeps them.');
+  // Another channel: the reason says what to do, so no "Nothing more to do".
+  assert.deepEqual(stayWords({ channel: 1 }), { head: 'It is on YouTube. Google Photos keeps it.', sub: 'It is on another YouTube channel. Switch channel to check it.', note: '' });
+  assert.equal(stayWords({ channel: 2 }).sub, 'They are on another YouTube channel. Switch channel to check them.');
+  assert.equal(stayWords({ shared: 1, channel: 1 }).sub, '1 is in a shared album, so deleting it would take it out of that album for everyone. 1 is on another YouTube channel.');
+  // Another reason with no sentence of its own: the heading still says where it is; counted with the rest.
+  assert.deepEqual(stayWords({ other: 1 }), { head: 'It is on YouTube. Google Photos keeps it.', sub: '', note: 'Nothing more to do for this one.' });
+  assert.equal(stayWords({ shared: 1, other: 1 }).sub, '1 is in a shared album, so deleting it would take it out of that album for everyone.');
+  assert.equal(stayWords({ shared: 1, other: 1 }).head, 'Both are on YouTube. Google Photos keeps them.');
 });
