@@ -44,7 +44,7 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 
 ## Not proven on the real account yet
 - [ ] Deleting a **no-copy** video. Only an On YouTube one has been done (IMG_4959.MOV).
-- [ ] An **Unlisted** upload: does it stay Unlisted, and does it play inside the app? YouTube's API history says uploads from unverified projects stopped being forced to Private on 2 Nov 2026. Still to be tried on the real account.
+- [x] An **Unlisted** upload stays Unlisted and plays inside the app. Proven on the real account on 26 Nov 2026 with 0.11.2/0.12.0 (IMG_3916.MOV, 28 MB): every fact the same, Seen by "As you chose".
 - [ ] **Whether the Google Photos trash still counts toward storage.** Google's Help pages don't say. Until it is known, the counter must not say the space is free now. To find out, compare the storage figure before and after a large delete.
 
 ## Needed before other people can use it
@@ -72,7 +72,7 @@ Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release
 - [ ] **Android.** The phone steps are iPhone only.
 
 ### Recommended path, cheapest first
-1. Prove an Unlisted upload on the real account (about 1 hour, $0).
+1. ~~Prove an Unlisted upload on the real account~~ (done 26 Nov 2026).
 2. Pilot with 2–3 close people: unpacked folder plus test users (an afternoon, $0).
 3. Stay in Testing for up to 100 people. Add a clear "sign in again" message for the weekly re-sign-in ($0).
 4. Write the privacy policy and a one-page homepage (about 2 hours).
