@@ -63,6 +63,7 @@ const asked = new Set();
 let askedAt = 0;
 let asking = false;
 let askFailed = false;
+let fresher = 0; // counts each check before a delete, and each answer it writes: an older poll's answer is then dropped
 const best = new Map(); // YouTube id -> the highest progress YouTube gave: { pct, leftMs }
 const cameNew = new Set(); // keys seen with YouTube, or uploaded, in this visit: their arrival in Delete is news
 let ytWaiting = false; // something of this channel is with YouTube (as last drawn)
@@ -512,12 +513,14 @@ async function askYouTube(getAuth = () => yt.getToken(CLIENT_ID, false)) {
   askFailed = false;
   render();
   const ch = channel.id;
+  const gen = fresher;
+  const stale = () => ch !== channel?.id || gen !== fresher; // a check made since then knows better
   try {
     records = await allRecords();
     const ids = [...records].filter(([k, r]) => !r.deletedAt || videos.has(k)).map(([, r]) => r).filter((r) => r.state === 'uploaded' && r.id && r.channel === ch).map((r) => r.id);
     await getAuth(false);
     const found = ids.length ? await yt.getStatuses(CLIENT_ID, ids) : new Map();
-    if (ch !== channel?.id) return;
+    if (stale()) return;
     for (const id of ids) { asked.add(id); statuses.delete(id); }
     for (const [id, v] of found) { statuses.set(id, v); best.set(id, keepHighest(best.get(id), ytProgress(v))); }
     askedAt = Date.now();
@@ -526,7 +529,7 @@ async function askYouTube(getAuth = () => yt.getToken(CLIENT_ID, false)) {
     const states = everything().map((x) => x.st.s);
     log(`YouTube answered about ${ids.length}: ${states.filter((s) => ['yt', 'held'].includes(s)).length} confirmed, ${states.filter((s) => s === 'proc').length} still processing, ${states.filter((s) => s === 'stop').length} need attention.`);
   } catch (e) {
-    if (ch !== channel?.id) return;
+    if (stale()) return;
     askFailed = true;
     statuses.clear(); asked.clear(); held.clear(); ready.clear(); askedAt = 0;
     log(`YouTube could not be asked: ${e.message ?? e}`);
@@ -694,13 +697,15 @@ async function trashIt() {
 const askOne = async (id) => (await yt.getStatuses(CLIENT_ID, [id])).get(id);
 /** What was just read becomes what the lists show, so a video that fails goes back to step 2. */
 function learn(key, d, video) {
+  fresher += 1;
   const id = records.get(key)?.id;
   if (d) details.set(key, d);
   if (id) { asked.add(id); if (video) statuses.set(id, video); else statuses.delete(id); }
   judge(key);
 }
-/** A moved video, read again from both sides. Throws why it may not be deleted. */
+/** A moved video, read again from both sides. Throws why it may not be deleted; else gives what YouTube said just now. */
 async function checkCopy(key, duration, signal) {
+  fresher += 1; // a poll already out does not overwrite this check
   const no = (why) => { throw new StopError(`Nothing was deleted. ${why}`); };
   const getAuth = authFor(signal);
   const record = await getRecord(key);
@@ -715,6 +720,7 @@ async function checkCopy(key, duration, signal) {
   learn(key, d, video);
   const why = movedReasons({ record, details: d, video, channelId: channel?.id, duration });
   if (why.length) no(plainReason(why[0]));
+  return video;
 }
 /** It is gone from Google Photos on purpose. The record stays, so it is never offered again. */
 async function remembered(key) {
@@ -740,14 +746,15 @@ async function trashNow() {
     notice = plainError('Nothing was deleted. It has changed since it was listed.');
     return render();
   }
+  let checked = null; // what YouTube said in the check just made
   if (kind === 'moved') {
     let fine = false;
-    await work('check', 'Checking the copy once more', async (signal) => { closePlayer(); await checkCopy(key, v.duration, signal); fine = true; });
+    await work('check', 'Checking the copy once more', async (signal) => { closePlayer(); checked = await checkCopy(key, v.duration, signal); fine = true; });
     if (!fine) { pick = null; pairing = null; return render(); }
     if (pick !== key) return;
   }
   // Who can watch it, from the check just made.
-  const seen = kind === 'moved' ? visibility(record, statuses.get(record.id)) : null;
+  const seen = kind === 'moved' ? visibility(record, checked) : null;
   if (seen && !['same', 'more'].includes(seen.way)) {
     pick = null;
     notice = plainError('Nothing was deleted. Who can watch it on YouTube is not what you chose.');
@@ -848,7 +855,7 @@ async function manyNow(keys) {
       closePlayer();
       for (const i of moved) {
         at = i.v.key;
-        try { await checkCopy(i.v.key, i.v.duration, signal); } catch (e) { throw signal.aborted ? e : named(e, i.v.fileName); }
+        try { i.video = await checkCopy(i.v.key, i.v.duration, signal); } catch (e) { throw signal.aborted ? e : named(e, i.v.fileName); }
       }
       fine = true;
     });
@@ -857,7 +864,7 @@ async function manyNow(keys) {
   }
   for (const i of moved) {
     // Who can watch it, from the check just made.
-    const seen = visibility(i.record, statuses.get(i.record.id));
+    const seen = visibility(i.record, i.video);
     if (!['same', 'more'].includes(seen.way)) return nope(i.v.key, `${i.v.fileName}: Who can watch it on YouTube is not what you chose.`);
     i.shownAs = visName(seen.actual) ?? visName(seen.chosen);
   }
