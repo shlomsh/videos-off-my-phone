@@ -102,6 +102,7 @@ let goneNote = '';
 let finding = null; // while it looks: { why: 'again' | 'refresh' | 'one', keys, at, found, missing }
 const notFound = new Set(); // looked for in this visit, and not on the channel
 let foundHere = 0; // found again in this visit
+let findRetry = null; // the search that did not work, for Try again
 
 // ---- helpers
 async function photosTab() {
@@ -276,6 +277,9 @@ const findAgain = (keys, why) => work('find', 'Finding moved videos on YouTube',
           await setRecord(key, relink(r, id, ch, new Date().toISOString()));
           finding.found.add(key); notFound.delete(key); foundHere += 1;
           log(`${r.fileName}: found on YouTube again.`);
+        } else if (r.id && uploads.some((u) => u.id === r.id && !u.fileDetails?.fileSize)) {
+          // Its own video is listed, but YouTube did not give its size: not known, so nothing changes.
+          log(`${r.fileName}: YouTube did not give its size, so it was not checked again now.`);
         } else {
           // Not found exactly: whatever link it had is not kept, so it cannot be deleted here.
           if (r.id) await setRecord(key, forgetYouTube(new Map([[key, r]])).get(key));
@@ -289,7 +293,7 @@ const findAgain = (keys, why) => work('find', 'Finding moved videos on YouTube',
     }
   } catch (e) {
     // The 30-day check is quiet: it is tried again next time, and no record changed.
-    if (why !== 'refresh' || signal.aborted) throw e;
+    if (why !== 'refresh' || signal.aborted) { if (!signal.aborted) findRetry = () => findAgain(keys, why).then(() => askYouTube()); throw e; }
     log(`Checking moved videos on YouTube again did not work: ${e?.message ?? e}`);
   } finally {
     finding = null;
@@ -1174,8 +1178,10 @@ const calm = (key, kind, tone, head, text, footer) => [main(key, 'one', h('div',
 function noticeView() {
   const n = notice;
   const photosNext = n.action === 'photos' && photosOpen === false;
+  // After a search on the channel that did not work, Try again searches again (once per press).
+  const again = () => { const f = findRetry; findRetry = null; notice = null; render(); if (f) f(); else settle(); };
   return calm('notice', n.kind, n.kind === 'stop' ? 'c-stop' : 'mute', n.title, n.text,
-    photosNext ? foot(null, 'n-photos', 'Open Google Photos', openPhotos) : foot(null, 'n-again', 'Try again', () => { notice = null; render(); settle(); }));
+    photosNext ? foot(null, 'n-photos', 'Open Google Photos', openPhotos) : foot(null, 'n-again', 'Try again', again));
 }
 
 const needs = (list) => list.filter((x) => ['look', 'lost'].includes(x.p)).length;
@@ -1684,21 +1690,20 @@ function moveBody(all) {
     const cont = why?.action === 'photos' && photosOpen === false ? foot(left, 'photos3', 'Open Google Photos', openPhotos)
       : foot(left, 'continue', `Continue with ${wait.length}`, () => startMove(waiting(everything()).map((x) => x.v.key)), { off: why?.kind === 'clock' ? 'Try again tomorrow.' : off });
     v = { head: why ? why.title : w.head, sub: why ? why.text : w.sub, n: t.pct, isHeld: true, small: w.small, foot: cont };
-  } else if (notFound.size && !(askFailed && !asking)) {
-    const nf = list.filter(lostOnYT).length;
-    v = { head: `${foundHere} found on YouTube. ${nf} ${nf === 1 ? 'was' : 'were'} not found.`, sub: 'The found ones are back where they were.', foot: nextFoot(all, note('You can close this page and come back later.')) };
   } else if (askFailed && !asking) {
     v = { head: 'Nothing is confirmed right now.', sub: 'YouTube did not answer.', foot: foot(note('Nothing moves on until it answers.'), 'askagain', 'Try again', askAgain, { off: busy && busy.kind !== 'list' ? 'Wait a moment.' : '' }) };
   } else {
     const ended = lastRun && !lastRun.stopped && !lastRun.halted;
     const look = of('look').length;
     const open = of('working').length;
-    v = lost && ended ? { head: `Uploading is finished. ${lost} did not arrive.`, sub: work_ ? go_.replace('They', 'The others') : '' }
+    const nf = list.filter(lostOnYT).length; // looked for on the channel in this visit, not found (E37)
+    v = nf ? { head: `${foundHere} found on YouTube. ${nf} ${nf === 1 ? 'was' : 'were'} not found.`, sub: 'The found ones are back where they were.' }
+      : lost && ended ? { head: `Uploading is finished. ${lost} did not arrive.`, sub: work_ ? go_.replace('They', 'The others') : '' }
       : work_ ? { head: `YouTube is working on ${count(work_)}.`, sub: work_ === 1 ? 'It moves on to Delete by itself.' : go_ }
         : open ? { head: asking ? 'Asking YouTube…' : 'Comparing the copies…', sub: '' }
           : look + lost ? { head: `${count(look + lost)} ${look + lost === 1 ? 'needs' : 'need'} you.`, sub: '' }
             : { head: 'Nothing needs you here.', sub: wait.length ? '' : `${count(list.length)} ${list.length === 1 ? 'stays' : 'stay'} in Google Photos.` };
-    v.foot = photosOpen === false && open ? foot(note(later), 'photos3', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' }) : nextFoot(all, note(later), { sec: !!work_ });
+    v.foot = photosOpen === false && open ? foot(note(later), 'photos3', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' }) : nextFoot(all, note(nf ? [goneNote, 'You can close this page and come back later.'].filter(Boolean).join(' ') : later), { sec: !!work_ && !nf });
     if (work_) {
       v.live = liveLine();
       if (withYT.some((x) => isSlow(x.v.record?.at))) v.slow = SLOW_NOTE;
