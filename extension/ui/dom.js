@@ -113,10 +113,13 @@ export function askDeleteMany(title, list, text, yes = 'Delete') {
       h('ul', null, list.map(({ pic, name, facts, copy, safe = false }) => h('li', null, h('span', { class: 'pt2' }, pic), h('span', { class: 'stack g4' }, h('strong', null, name), h('span', null, facts), h('span', { class: `line1 ${safe ? 'c-safe' : 'c-stop'}` }, icon(safe ? 'check' : 'stop', 16), copy))))),
       h('p', null, text),
       h('div', { class: 'bt' }, no, h('button', { type: 'button', class: 'btn bare', onclick: () => d.close('yes') }, yes))));
-    d.onclick = (e) => { if (e.target === d) d.close('no'); };
+    // A click outside cancels, but not the second click of a double click that opened it.
+    let at = 0;
+    d.onclick = (e) => { if (e.target === d && performance.now() - at > 400) d.close('no'); };
     d.onclose = () => { resolve(d.returnValue === 'yes'); d.remove(); };
     document.querySelector('.ge').append(d);
     d.showModal();
+    at = performance.now();
     // Cancel has the keyboard, but the question opens at its top: on a small window Cancel is far below.
     no.focus({ preventScroll: true });
     d.scrollTop = 0;
