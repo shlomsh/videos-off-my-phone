@@ -61,6 +61,7 @@ const failed = new Map();
 const statuses = new Map();
 const asked = new Set();
 let askedAt = 0;
+let askStarted = 0; // when the last question to YouTube went out
 let asking = false;
 let askFailed = false;
 let fresher = 0; // counts each check before a delete, and each answer it writes: an older poll's answer is then dropped
@@ -511,6 +512,7 @@ const pct = () => (progress?.total ? Math.floor(Math.min(1, progress.bytes / pro
 async function askYouTube(getAuth = () => yt.getToken(CLIENT_ID, false)) {
   if (asking || !channel) return;
   asking = true;
+  askStarted = Date.now();
   askFailed = false;
   render();
   const ch = channel.id;
@@ -1425,9 +1427,10 @@ function liveLine() {
   return h('span', { class: 'live sm', 'data-key': 'live', 'data-deep': true }, h('i', { 'aria-hidden': 'true' }), h('span', null, text),
     h('button', { type: 'button', class: 'lnkb', 'data-f': 'checknow', 'aria-disabled': asking ? 'true' : null, onclick: checkNow }, asking ? 'Checking…' : 'Check now'));
 }
-/** Asks YouTube at once. One question at a time: while one is out, this does nothing. */
+/** Asks YouTube at once. One question at a time: while one is out, or within 5 seconds of the last one, this does nothing. */
+const CHECK_GAP = 5000;
 function checkNow() {
-  if (asking || (busy && busy.kind !== 'list') || dialog) return;
+  if (asking || Date.now() - askStarted < CHECK_GAP || (busy && busy.kind !== 'list') || dialog) return;
   askAgain();
 }
 function moveView(all) {
