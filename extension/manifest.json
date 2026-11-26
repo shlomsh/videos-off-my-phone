@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Videos Off My Phone",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Free and open source. Move big videos to your own YouTube channel, which doesn't use your Google storage, then delete the originals.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwP0ljMWJfCDhq4hLR0jZ1h90QYdhUUxpWzPvvCK80jwUPD2Opbhl2Fcisr3RdOBD85K+FTLX3pjA9TfVyi94DVfhd4eEs/jhvkWQ9jWOC/IkxJiNIr40/VcJ3ScncRn/QAGpSsBh+3L7Y53rYiIyBUUKUK3QM3V8k79TCK9692+gWZMldhL5GomFu8Lr8L0BZpYHwgCKts37gHalWEN0Wk706ivj0nJkV9MffUyoCsKay28yqW01vNCpUdB84MJqIVtHsBv/uGoFfZ/2AGUV81u6EgIlTSUhFDe3X9C6d7hdK8FDjyrZ99NAGSa+eqvcLySErIoO6Puejaip1HP3MwIDAQAB",
   "minimum_chrome_version": "120",
