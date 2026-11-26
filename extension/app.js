@@ -483,6 +483,7 @@ const visIcon = (v) => WHO.find((o) => o.value === v)?.icon ?? 'yt';
 async function askMove() {
   if (dialog || run || (busy && busy.kind !== 'list')) return;
   sentBar = null;
+  plus = null; // the "+N" goes at the next press
   const list = picked().move; // frozen now: exactly these move
   const keys = list.map((x) => x.v.key);
   if (!keys.length) return;
@@ -1084,7 +1085,9 @@ function paintBar(all) {
     run ? (want ? 'Paused' : `${pct()}%`) : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : waiting(all).length ? 'Stopped' : rows2.some(withYouTube) ? 'YouTube working' : 'Nothing to do',
     busy?.kind === 'trash' ? 'Deleting' : lock() ? 'Look first' : n3 ? count(n3) : trashed ? 'Nothing left' : 'Nothing yet',
   ];
-  // Keyed, so the "+N" pops once when it appears, not again at each redraw.
+  // Keyed, so the "+N" pops once when it appears, not again at each redraw. The current step is set on the
+  // buttons already there first, so a step change does not draw them (and the chip) anew.
+  for (const b of $('path').querySelectorAll('button[data-f^="step-"]')) b.setAttribute('aria-current', b.dataset.f === `step-${step}` ? 'step' : 'false');
   draw($('path'), STEPS.map((name, i) => h('li', { 'data-key': `p${i}`, 'data-deep': true }, h('button', { type: 'button', 'aria-current': step === i + 1 ? 'step' : 'false', 'data-f': `step-${i + 1}`, 'data-key': 'b', 'data-deep': true, onclick: () => go(i + 1) },
     h('span', { class: 'num', 'aria-hidden': 'true' }, String(i + 1)), h('span', null, h('b', null, name), h('small', null, subs[i])),
     i === 2 && plus ? h('em', { class: 'plus', 'aria-hidden': 'true', 'data-key': `plus-${plus.seq}` }, `+${plus.n}`) : null))));
@@ -1246,7 +1249,7 @@ function tile(x) {
   const id = `t-${v.key}`;
   const name = v.fileName ?? 'the video';
   return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: `vid${on ? ' on' : ''}${can ? '' : ' off'}`, title: can ? null : st.meta },
-    can ? h('input', { id, class: 'cb', type: 'checkbox', checked: on, 'data-f': `tick-${v.key}`, 'aria-label': `Tick ${name}, ${when}, ${gb(v.size)}`, onchange: (e) => { if (e.target.checked) sel.add(v.key); else sel.delete(v.key); sentBar = null; render(); } }) : null,
+    can ? h('input', { id, class: 'cb', type: 'checkbox', checked: on, 'data-f': `tick-${v.key}`, 'aria-label': `Tick ${name}, ${when}, ${gb(v.size)}`, onchange: (e) => { if (e.target.checked) sel.add(v.key); else sel.delete(v.key); sentBar = null; plus = null; render(); } }) : null,
     h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': `Watch ${name}, ${when}`, onclick: () => watch(v.key) }, thumbOf(v.key), v.duration > 0 ? h('span', { class: 'len' }, length(v.duration)) : null),
     h('label', { class: 'cap', for: can ? id : null }, can ? [h('b', null, gb(v.size)), ` ${when}`] : h('b', { class: 'bad' }, 'Cannot be moved'))));
 }
