@@ -1,0 +1,33 @@
+# Manual check that the store sign-in works: reads the item's status, changes nothing.
+name: Store access check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Sign in to Google
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+      - name: Read the item's status
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+          ITEM: publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_ITEM_ID }}
+        run: |
+          curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" \
+            "https://chromewebstore.googleapis.com/v2/$ITEM:fetchStatus" |
+            jq '{published: .publishedItemRevisionStatus, submitted: .submittedItemRevisionStatus, takenDown, warned}'
