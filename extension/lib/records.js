@@ -55,7 +55,7 @@ export async function allTrash() {
 /** Only one page may upload or delete at a time. */
 export async function exclusive(task) {
   return navigator.locks.request('video-offload', { ifAvailable: true }, (lock) => {
-    if (!lock) throw new Error('Another Video Offload page is busy. Wait for it or close it.');
+    if (!lock) throw new Error('Another Videos Off My Phone page is busy. Wait for it or close it.');
     return task();
   });
 }

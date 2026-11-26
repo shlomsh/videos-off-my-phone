@@ -97,7 +97,7 @@ test('plain words', () => {
   assert.equal(plainReason('something new'), 'something new.');
   assert.match(plainError('YouTube: The user has exceeded the number of videos they may upload.').title, /all YouTube takes/);
   assert.match(plainError('Lost the Google Photos tab. Keep one open at photos.google.com.').title, /No Google Photos tab/);
-  assert.match(plainError('Another Video Offload page is busy. Wait for it or close it.').title, /another tab/);
+  assert.match(plainError('Another Videos Off My Phone page is busy. Wait for it or close it.').title, /another tab/);
   assert.equal(isoLength('PT1M3S'), 63000);
   assert.equal(isoLength('bad'), null);
   assert.equal(amountLine({ bytes: 60e6, total: 120e6, sent: 60e6, seconds: 20 }), '60 MB of 120 MB, 3.0 MB a second, about 20 seconds left');

@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Video Offload (proof of concept)",
-  "version": "0.10.0",
+  "name": "Videos Off My Phone",
+  "version": "0.11.0",
   "description": "Moves original videos from Google Photos to YouTube as private, without saving them to disk. Deletes only a video you confirm, by moving it to the Google Photos trash.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwP0ljMWJfCDhq4hLR0jZ1h90QYdhUUxpWzPvvCK80jwUPD2Opbhl2Fcisr3RdOBD85K+FTLX3pjA9TfVyi94DVfhd4eEs/jhvkWQ9jWOC/IkxJiNIr40/VcJ3ScncRn/QAGpSsBh+3L7Y53rYiIyBUUKUK3QM3V8k79TCK9692+gWZMldhL5GomFu8Lr8L0BZpYHwgCKts37gHalWEN0Wk706ivj0nJkV9MffUyoCsKay28yqW01vNCpUdB84MJqIVtHsBv/uGoFfZ/2AGUV81u6EgIlTSUhFDe3X9C6d7hdK8FDjyrZ99NAGSa+eqvcLySErIoO6Puejaip1HP3MwIDAQAB",
   "minimum_chrome_version": "120",
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "action": {
-    "default_title": "Video Offload"
+    "default_title": "Videos Off My Phone",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" }
   },
   "background": {
     "service_worker": "background.js",

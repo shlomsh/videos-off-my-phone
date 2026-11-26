@@ -78,7 +78,7 @@ export function plainError(message) {
   if (/did not approve access|canceled|cancelled/i.test(m)) return say('info', 'You are not signed in yet.', 'The sign-in window was closed, so nothing changed.', 'signin');
   if (/different YouTube channel/i.test(m)) return say('pause', 'That is a different channel.', 'Please use the same channel as before.', 'signin');
   if (/tick both YouTube permissions/i.test(m)) return say('info', 'Both permissions are needed.', 'Sign in again and tick both YouTube permissions.', 'signin');
-  if (/Another Video Offload page is busy/i.test(m)) return say('no', 'Video Offload is busy in another tab.', 'Use that tab, or close it and try again here.');
+  if (/Another Videos Off My Phone page is busy/i.test(m)) return say('no', 'Videos Off My Phone is busy in another tab.', 'Use that tab, or close it and try again here.');
   if (/^Nothing was deleted\. /.test(m)) return say('stop', 'Nothing was deleted.', m.slice(21), 'photos');
   if (/Not signed in to Google Photos/i.test(m)) return say('fail', 'Google Photos is not signed in.', 'Sign in on the Google Photos tab, then try again.', 'photos');
   if (/Google Photos tab|Open photos\.google\.com/i.test(m)) return say('fail', 'No Google Photos tab is open.', 'Open Google Photos in another tab and keep it open, then try again.', 'photos');

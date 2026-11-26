@@ -4,7 +4,7 @@ import { streamToSession, probeSession, StopError } from './lib/transfer.js';
 import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive } from './lib/records.js';
 import { runQueue } from './lib/queue.js';
 import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib/trash.js';
-import { CLIENT_ID } from './config.js';
+import { CLIENT_ID, OPEN_SOURCE } from './config.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
 import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
@@ -333,7 +333,7 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
   const show = (key, part) => {
     const now = (part ?? 0) * byKey.get(key).size;
     progress = { key, index, count: list.length, bytes: before + now, total, sent: sent + sending, seconds: (Date.now() - startedAt) / 1000 };
-    document.title = `${pct()}% · Video Offload`;
+    document.title = `${pct()}% · Videos Off My Phone`;
     render();
   };
   let stop = null;
@@ -374,7 +374,7 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
     stop = e;
     throw e;
   } finally {
-    document.title = 'Video Offload';
+    document.title = 'Videos Off My Phone';
     run = null;
     records = await allRecords();
     const up = list.filter((v) => records.get(v.key)?.state === 'uploaded');
@@ -995,13 +995,25 @@ function paintBar(all) {
 }
 
 function startView() {
-  return h('main', { class: 'one', id: 'main', tabindex: '-1', 'data-key': 'm-start', 'data-deep': true, style: 'padding:24px' },
-    h('h1', null, 'Clean up the videos that fill your phone.'),
-    h('ol', { class: 'three' }, ['Choose: delete, or move to YouTube', 'The app moves them and checks every copy', 'Delete here, one yes for each'].map((t, i) => h('li', null, h('span', { class: 'num' }, String(i + 1)), h('span', null, t)))),
+  return h('main', { class: 'one hello', id: 'main', tabindex: '-1', 'data-key': 'm-start', 'data-deep': true },
+    OPEN_SOURCE ? h('span', { class: 'free' }, 'Free and open source') : null,
+    h('h1', null, 'YouTube storage doesn’t count toward your Google storage.'),
+    quotaPicture(),
+    h('p', { class: 'big' }, 'It moves your biggest videos from Google Photos to your own YouTube channel, in full original quality, then deletes the originals. Your phone and your Google storage get the space back.'),
+    h('ol', { class: 'three' }, ['Choose: delete, or move to YouTube', 'The app moves them and checks every copy', 'Delete here, after your yes'].map((t, i) => h('li', null, h('span', { class: 'num' }, String(i + 1)), h('span', null, t)))),
     signNote ? h('p', { class: 'why', role: 'alert' }, h('span', null, `${signNote.title} ${signNote.text}`), h('button', { type: 'button', class: 'txt', popovertarget: 'menu' }, 'Details')) : null,
     button('signin', 'btn', busy?.kind === 'signin' ? 'Continue in Google’s window…' : 'Sign in to YouTube', signInFresh, { disabled: !!busy, style: 'min-height:56px;min-width:280px;font-size:18px' }),
     restoring && !busy ? h('p', { class: 'sm mute', role: 'status' }, 'Signing you in quietly…') : null,
-    h('p', { class: 'sm mute' }, 'Google asks for two permissions: tick both. Each time you move videos, you choose who can watch them on YouTube. Only you, at first. Every copy is in full quality and marked “not made for kids”. Deleting moves a video to the Google Photos trash, only after your yes. You can restore it for 30 days. It is not made by Google or YouTube.'));
+    h('p', { class: 'sm mute' }, 'Google asks for two permissions: tick both. You choose who can watch: only you, people with the link, or everyone. Deleting moves a video to the Google Photos trash, where you can restore it for 30 days. No ads, no account with us, no server of ours.'),
+    h('p', { class: 'tm' }, 'Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.'));
+}
+/** Gmail, Drive and Photos share the Google storage; the YouTube channel is outside it. Plain colours, no logos. */
+function quotaPicture() {
+  return h('div', { class: 'quota', role: 'img', 'aria-label': 'Your Google storage is shared by Gmail, Google Drive and Google Photos. YouTube is not part of it.' },
+    h('div', { class: 'qbox' }, h('span', { class: 'sm mute' }, 'Your Google storage, 15 GB free'),
+      h('div', { class: 'qbar', 'aria-hidden': 'true' }, h('i', { class: 'qg' }, 'Gmail'), h('i', { class: 'qd' }, 'Drive'), h('i', { class: 'qp' }, 'Photos'))),
+    h('span', { class: 'qarr', 'aria-hidden': 'true' }, '→'),
+    h('div', { class: 'qbox qyt' }, h('span', { class: 'sm mute' }, 'Your YouTube channel'), h('strong', null, 'Not part of it')));
 }
 
 function pausedCheck() {

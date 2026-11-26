@@ -1,4 +1,4 @@
-# Video Offload (proof of concept)
+# Videos Off My Phone
 
 A Chrome extension to clean up the videos that fill a phone: each one is either deleted,
 or moved to YouTube as Private and checked. It streams files without saving them to disk.
@@ -66,7 +66,7 @@ opens in a small YouTube window instead.
 
 ## Limits
 - Google Photos access uses undocumented web calls and can break at any time.
-- Keep both the Video Offload tab and the Google Photos tab open.
+- Keep both the Videos Off My Phone tab and the Google Photos tab open.
 - Two real uploads so far (2026-11-25). 196 MB in 24 s: bytes sent matched a saved original; after processing YouTube reported the same size, Private, 3840×2160, 59.97 fps, H.265 and the right day. 485 MB in 150 s: same size and Private; processing had not finished when last checked.
 - YouTube keeps only the recording day, not the time, and may take a while to show it. Local-day handling near midnight is unit-tested only.
 - Sign-in lasts about an hour. Renewal between videos works; renewal in the middle of one is unproven. Files over 485 MB and dropped connections are untested on the real services.
