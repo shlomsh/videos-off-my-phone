@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copiesStay, phoneWords, initial } from '../extension/ui/text.js';
+import { copiesStay, onlyCopies, PLAYER, READING, phoneWords, initial } from '../extension/ui/text.js';
 
 test('the delete question speaks of YouTube copies by the real count', () => {
   assert.equal(copiesStay(1, 1), 'The YouTube copy stays. ');
@@ -33,4 +33,22 @@ test('the phone picture shows the channel letter, or nothing when it is not know
   assert.equal(initial(''), '');
   assert.equal(initial(undefined), '');
   assert.equal(initial(null), '');
+});
+
+test('the delete question says which have no YouTube copy, so their only copy goes (v51)', () => {
+  assert.equal(onlyCopies(1), '1 has no YouTube copy, so this is its only copy. ');
+  assert.equal(onlyCopies(2), '2 have no YouTube copy, so these are their only copies. ');
+  assert.equal(onlyCopies(6), '6 have no YouTube copy, so these are their only copies. ');
+  assert.equal(onlyCopies(0), '');
+  assert.ok(!/anywhere else/.test(onlyCopies(1) + onlyCopies(3)));
+});
+
+test('the step 3 player and the grey button while reading use the v51 words', () => {
+  assert.deepEqual(PLAYER.del, {
+    title: 'Delete it, or move it to YouTube first?', bare: 'Delete from Google Photos', copy: 'Move to YouTube first',
+    facts: 'It has no YouTube copy.', note: 'It has no YouTube copy. Deleting asks you first.',
+  });
+  assert.deepEqual(PLAYER.choose, { title: 'What should happen to this video?', bare: 'Skip YouTube, send to Delete', copy: 'Move to YouTube' });
+  assert.deepEqual(READING, { button: 'Delete from Google Photos', why: 'Still reading your videos.' });
+  assert.notEqual(READING.button, 'Delete'); // never a bare "Delete"
 });

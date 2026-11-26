@@ -7,7 +7,7 @@ import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib
 import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
 import { askRemove, askFinish } from './ui/account.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
-import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, phoneWords, initial } from './ui/text.js';
+import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, phoneWords, initial } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, shownPlace, gridPicks, gate, canCopy, factsFor, differs } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
@@ -772,7 +772,7 @@ async function trashNow() {
     const tabId = await photosTab();
     closePlayer();
     listNote = '';
-    pairing = null;
+    pairing = watching = null; // the player is done with it
     render();
     let r;
     let last; // what the final check read
@@ -880,7 +880,7 @@ async function manyNow(keys) {
     copy: what.kind === 'moved' ? `On YouTube, ${shownAs}. Checked just now.` : 'It has no YouTube copy.',
   }));
   const ok = await askDeleteMany(`Delete these ${n} from Google Photos?`, rowsShown,
-    `${copiesStay(moved.length, n)}They go to the Google Photos trash, where you can restore them for 30 days. ${nBare ? `${nBare} ${nBare === 1 ? 'has' : 'have'} no copy anywhere else. ` : ''}They are deleted one by one, and it stops at the first problem. They can leave your iPhone too, when Google Photos syncs there.`,
+    `${copiesStay(moved.length, n)}They go to the Google Photos trash, where you can restore them for 30 days. ${onlyCopies(nBare)}They are deleted one by one, and it stops at the first problem. They can leave your iPhone too, when Google Photos syncs there.`,
     `Delete ${n} from Google Photos`);
   if (!ok || !keys.every((k) => picks.has(k)) || (busy && busy.kind !== 'list')) return;
   many = { n, index: 0, went: 0, stop: false };
@@ -1350,11 +1350,19 @@ function undoAnswer() {
   said = { text: 'Undone.' };
   render();
 }
-/** The same two answers, from the list in step 3. */
-function answer3(kind) {
+/** The two answers in step 3, for a video with no YouTube copy: delete it now (after the usual yes), or move it first. */
+function answer3(kind, e) {
+  if (e?.detail > 1) return;
   const key = watching;
-  if (kind === 'copy') { decide(key, 'copy'); listNote = 'It is in step 1 again, ticked to move.'; } else if (picks.has(key) || ticked().length < PER) { picks.add(key); listNote = ''; } else listNote = `Not ticked. Up to ${PER} at a time.`;
-  say(listNote || 'Ticked to delete.');
+  if (kind === 'bare') {
+    // The one-video yes question, as from the list; the player stays if the user says no.
+    const k = pick = key;
+    trashIt().then(() => { if (pick !== k) picks.delete(k); render(); });
+    return;
+  }
+  decide(key, 'copy');
+  listNote = 'It is in step 1 again, ticked to move.';
+  say(listNote);
   leaveWatch();
 }
 function togglePlay() {
@@ -1373,18 +1381,20 @@ function watchView(x, list) {
   const nav = (f, label, sign, by, off) => h('button', { type: 'button', class: 'ib', 'data-f': f, 'aria-label': label, title: label, disabled: off, onclick: () => turnTo(by) }, mark(sign, 28));
   const facts = [v.size ? gb(v.size) : '', Number.isFinite(v.timestamp) ? day(v.timestamp) : '', v.duration > 0 ? length(v.duration) : ''].filter(Boolean).join(', ');
   const noCopy = can ? '' : st.s !== 'no' ? 'It cannot be moved now.' : v.original === false ? 'Google Photos does not hold the original, so it cannot be moved.' : `${st.meta.replace(/\.$/, '')}, so it cannot be moved.`;
+  const W = three ? PLAYER.del : PLAYER.choose;
+  const not3 = three ? (lock() ? 'Look in the trash first.' : otherwork()) : ''; // why Delete is grey here
   const line = said ? [said.mini ? h('span', { class: 'mini', 'aria-hidden': 'true' }, thumbOf(said.mini)) : null, h('span', null, said.text, said.was ? [' ', button('undo', 'txt', 'Undo', undoAnswer)] : null)]
-    : h('span', null, noCopy || (on ? 'Ticked to move. Press again to untick.' : BEFORE));
-  const reply = (kind, f, cls, text, off, pressed) => h('button', { type: 'button', class: cls, 'data-f': f, 'aria-pressed': pressed, 'aria-describedby': 'why', disabled: off, onclick: (e) => (step === 3 ? answer3(kind) : answer(kind, e)) }, text);
+    : h('span', null, three ? not3 || [noCopy, W.note].filter(Boolean).join(' ') : noCopy || (on ? 'Ticked to move. Press again to untick.' : BEFORE));
+  const reply = (kind, f, cls, text, off, pressed) => h('button', { type: 'button', class: cls, 'data-f': f, 'aria-pressed': pressed, 'aria-describedby': 'why', disabled: off, onclick: (e) => (step === 3 ? answer3(kind, e) : answer(kind, e)) }, text);
   const screen = photosSide(v, false, null);
   // A press on the layer, or any key, ends the moment early. The note below says the same in words.
   if (held) screen.append(h('div', { class: 'stamp', 'data-key': `stamp-${v.key}`, 'aria-hidden': 'true', onclick: endStamp }, h('span', { class: 'sk' }, mark('check', 30)), h('strong', null, held.kind === 'bare' ? 'Sent to Delete, no YouTube copy' : 'Ticked to move'), h('span', null, held.next === null ? 'That was the last one.' : 'Next video in a moment')));
   return [
-    main('watch', 'watch', h('div', { class: 'ttl' }, h('h1', null, 'What should happen to this video?'), h('span', { class: 'mute', title: v.fileName ?? null }, three ? `${facts}. It has no YouTube copy.` : `${facts}. Video ${at + 1} of ${list.length}`), shut()),
+    main('watch', 'watch', h('div', { class: 'ttl' }, h('h1', null, W.title), h('span', { class: 'mute', title: v.fileName ?? null }, three ? `${facts}. ${W.facts}` : `${facts}. Video ${at + 1} of ${list.length}`), shut()),
       h('div', { class: 'film', 'data-key': 'film', 'data-deep': true }, nav('wprev', 'Previous video', 'left', -1, three || at === 0), screen, nav('wnext', 'Next video', 'right', 1, three || at >= list.length - 1))),
     // Keyed, so the note stays one live region while the videos change.
     h('footer', { class: 'foot ask3', 'data-key': 'wfoot', 'data-deep': true }, h('span', { class: 'mute sm side1', id: 'why', role: held?.next === null ? null : 'status', 'data-key': 'side1', 'data-deep': true }, line), // said once
-      reply('bare', 'wbare', 'btn sec', 'Skip YouTube, send to Delete', false), reply('copy', 'wtick', 'btn', 'Move to YouTube', !can, three ? null : String(on))),
+      reply('bare', 'wbare', three ? 'btn bare' : 'btn sec', W.bare, !!not3), reply('copy', 'wtick', 'btn', W.copy, !can, three ? null : String(on))),
   ];
 }
 
@@ -1607,7 +1617,7 @@ function deleteView(all) {
   if (two) return pairView(two);
   if (unread().length && !run) {
     return photosOpen === false ? calm('bphotos', 'lib', 'mute', 'Open Google Photos first.', 'It opens in its own tab. Keep that tab open while you use this page.', foot(null, 'photos6', 'Open Google Photos', openPhotos))
-      : calm('bread', 'clock', 'mute', 'Reading your videos…', 'Looking for the ones you chose earlier.', foot(null, 'bread', 'Delete', null, { off: 'This takes a moment.' }));
+      : calm('bread', 'clock', 'mute', 'Reading your videos…', 'Looking for the ones you chose earlier.', foot(null, 'bread', READING.button, null, { off: READING.why }));
   }
   if (!rows.length) return calm('empty', 'info', 'mute', 'Nothing to delete yet.', 'Choose videos in step 1. They come here when they are ready.', foot(note(listNote), 'choose3', 'Choose videos', () => go(1)));
   const pages = Math.ceil(rows.length / PER);

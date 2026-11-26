@@ -16,6 +16,18 @@ export function copiesStay(c, n) {
   if (c >= n) return c === 1 ? 'The YouTube copy stays. ' : 'The YouTube copies stay. ';
   return c === 1 ? '1 has a YouTube copy, which stays. ' : `${c} have YouTube copies, which stay. `;
 }
+/** The delete question's sentence about videos with no YouTube copy (n of them). Ends with a space when not empty. */
+export function onlyCopies(n) {
+  if (!(n > 0)) return '';
+  return n === 1 ? '1 has no YouTube copy, so this is its only copy. ' : `${n} have no YouTube copy, so these are their only copies. `;
+}
+/** The player's words: in Choose (step 1), and in Delete (step 3) for a video with no YouTube copy (canvas v51, E47). */
+export const PLAYER = {
+  choose: { title: 'What should happen to this video?', bare: 'Skip YouTube, send to Delete', copy: 'Move to YouTube' },
+  del: { title: 'Delete it, or move it to YouTube first?', bare: 'Delete from Google Photos', copy: 'Move to YouTube first', facts: 'It has no YouTube copy.', note: 'It has no YouTube copy. Deleting asks you first.' },
+};
+/** Step 3 while the videos chosen earlier are still being read: the grey button and its reason. */
+export const READING = { button: 'Delete from Google Photos', why: 'Still reading your videos.' };
 /** The words on the done page that follow how many videos it is about: it or them, and the iPhone's question. */
 export function phoneWords(n) {
   const many = n > 1;
