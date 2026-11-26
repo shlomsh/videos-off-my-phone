@@ -533,7 +533,7 @@ function verdict(x) {
   // Made less private outside this app: never deleted, whatever else is true.
   if (vis?.way === 'less') return out('stop', 'c-stop', `It is ${visName(vis.actual)} on YouTube.`, `You chose ${visName(vis.chosen)}. It was changed outside this app, so it is not deleted.`);
   if (p === 'youtube') {
-    const open = factsOf(x).filter((f) => !['same', 'fine'].includes(f.m));
+    const open = factsOf(x).filter((f) => !['same', 'fine', 'more', 'asyou'].includes(f.m));
     return open.length ? out('check', 'c-safe', 'Every check passed.', `${names(open)} ${open.length === 1 ? 'is' : 'are'} not checked.`)
       : out('check', 'c-safe', 'All the same.', [gb(v.size), Number.isFinite(v.timestamp) ? day(v.timestamp) : ''].filter(Boolean).join(', '));
   }
