@@ -1086,6 +1086,7 @@ function paintTitle(all) {
   if (document.title !== text) document.title = text;
 }
 const STEPS = ['Choose', 'Move to YouTube', 'Delete from Google Photos'];
+const SHORT = ['Choose', 'To YouTube', 'Delete']; // on a narrow window (v52); the full name stays the title and the accessible name
 function paintBar(all) {
   $('path').hidden = $('av').hidden = !channel;
   const n1 = toCopy(all).filter((x) => canCopy(x.st.s)).length;
@@ -1099,9 +1100,14 @@ function paintBar(all) {
   ];
   // Keyed, so the "+N" pops once when it appears, not again at each redraw. The current step is set on the
   // buttons already there first, so a step change does not draw them (and the chip) anew.
-  for (const b of $('path').querySelectorAll('button[data-f^="step-"]')) b.setAttribute('aria-current', b.dataset.f === `step-${step}` ? 'step' : 'false');
-  draw($('path'), STEPS.map((name, i) => h('li', { 'data-key': `p${i}`, 'data-deep': true }, h('button', { type: 'button', 'aria-current': step === i + 1 ? 'step' : 'false', 'data-f': `step-${i + 1}`, 'data-key': 'b', 'data-deep': true, onclick: () => go(i + 1) },
-    h('span', { class: 'num', 'aria-hidden': 'true' }, String(i + 1)), h('span', null, h('b', null, name), h('small', null, subs[i])),
+  const label = (i) => `Step ${i + 1}, ${STEPS[i]}, ${subs[i]}`;
+  for (const b of $('path').querySelectorAll('button[data-f^="step-"]')) {
+    const i = Number(b.dataset.f.slice(5)) - 1;
+    b.setAttribute('aria-current', step === i + 1 ? 'step' : 'false');
+    b.setAttribute('aria-label', label(i));
+  }
+  draw($('path'), STEPS.map((name, i) => h('li', { 'data-key': `p${i}`, 'data-deep': true }, h('button', { type: 'button', 'aria-current': step === i + 1 ? 'step' : 'false', 'aria-label': label(i), title: name, 'data-f': `step-${i + 1}`, 'data-key': 'b', 'data-deep': true, onclick: () => go(i + 1) },
+    h('span', { class: 'num', 'aria-hidden': 'true' }, String(i + 1)), h('span', null, h('b', null, h('span', { class: 'nl' }, name), h('span', { class: 'ns' }, SHORT[i])), h('small', null, subs[i])),
     i === 2 && plus ? h('em', { class: 'plus', 'aria-hidden': 'true', 'data-key': `plus-${plus.seq}` }, `+${plus.n}`) : null))));
   if (channel) {
     $('av').textContent = initial(channel.title) || '?';

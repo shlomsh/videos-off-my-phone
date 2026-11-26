@@ -197,6 +197,18 @@ container-type:inline-size;min-height:100vh;background:var(--bg);color:var(--ink
 @container (max-width:600px){.ge table{display:block;overflow-x:auto}.ge td,.ge th{white-space:nowrap}}
 .ge .q .ok.no{background:var(--stop);color:var(--bg)}
 .ge .vid.away.look .cap{color:var(--wait);font-weight:500} /* v52: a faded tile that needs a look */
+/* v52 narrow header (600 px and less): logo, moved-out chip and avatar in one row, the three pills short in the next */
+.ge .path .ns{display:none}
+@container (max-width:600px){
+.ge .brand span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ge .bar{gap:8px 12px;min-height:0;padding:8px 12px}
+.ge .path{order:3;flex-basis:100%;justify-content:space-between}
+.ge .path li{gap:4px;min-width:0}.ge .path li+li::before{width:4px;flex:none}
+.ge .path button{flex-direction:row;gap:6px;min-height:44px;padding:4px 8px 4px 4px;border-radius:99px;text-align:left;font-size:15px}
+.ge .path .num{width:28px;height:28px;font-size:14px}
+.ge .path .nl{display:none}.ge .path .ns{display:inline;white-space:nowrap}
+.ge .won{margin-left:auto}
+}
 
 /* what the real page needs on top of the design */
 body{margin:0}
