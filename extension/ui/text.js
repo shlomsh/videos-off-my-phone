@@ -49,6 +49,12 @@ export const STOPPED = {
   back: 'Put them back in Choose',
   bar: (n) => `${n} put back in Choose.`,
 };
+/** Step 3, a video with no YouTube copy goes back to Choose (canvas v54). Never "Undo delete": nothing was deleted. */
+export const BACK = {
+  one: 'Back to Choose',
+  many: (n) => `Put ${n} back in Choose`,
+  bar: (n) => (n === 1 ? 'Put back in Choose.' : `${n} put back in Choose.`),
+};
 /** Step 3 while the videos chosen earlier are still being read: the grey button and its reason. */
 export const READING = { button: 'Delete from Google Photos', why: 'Still reading your videos.' };
 /** The words on the done page that follow how many videos it is about: it or them, and the iPhone's question. */

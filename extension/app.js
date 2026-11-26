@@ -8,7 +8,7 @@ import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
 import { askRemove, askFinish } from './ui/account.js';
 import { askMove as askMoveDialog } from './ui/move.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
-import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED, START_INTRO, START_STEPS } from './ui/text.js';
+import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED, BACK, START_INTRO, START_STEPS } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs, stopTally } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
@@ -47,6 +47,7 @@ const CALM = 500;
 let sentBar = null; // the dark bar after "Send N to Delete" in the grid: { keys, size, seq }
 let putBar = null; // the dark bar after "Put them back in Choose" in step 2: { keys, was (key -> the half-sent record it dropped), seq }
 let plus = null; // the "+N" on the Delete pill, until the next press or Undo: { n, seq }
+let backBar = null; // the dark bar in step 3 after "Back to Choose" (canvas v54): { keys, seq }
 let seq = 0;
 let cameFrom = null; // where the grid was: { page, y }
 let page = 0;
@@ -164,7 +165,7 @@ function go(n) {
   if (n === 1 && lastRun && !run && !(lastRun.stopped || lastRun.halted)) lastRun = null;
   if (n !== step) { closePlayer(); if (!busy) notice = null; listNote = ''; }
   if (n === 3 && step !== 3) { trashed = null; plus = null; }
-  dropStamp(); sentBar = null; putBar = null;
+  dropStamp(); sentBar = null; putBar = null; backBar = null;
   if (n !== 1) { askFailed = false; for (const [k, d] of details) if (!d) details.delete(k); } // what had no answer is asked again
   if (n !== 1 && !asking && Date.now() - askedAt > 60_000 && moved().some((x) => x.v.record.channel === channel?.id)) setTimeout(() => { if (!busy) askYouTube(); });
   watching = pairing = null;
@@ -811,6 +812,7 @@ const trashCalls = (tabId, heard) => ({
 let dialog = false;
 async function trashIt() {
   if (dialog) return;
+  sentBar = backBar = null;
   dialog = true;
   try { await trashNow(); } finally { dialog = false; }
 }
@@ -923,6 +925,7 @@ async function deletePicked() {
 }
 async function trashMany(keys) {
   if (dialog) return;
+  sentBar = backBar = null;
   dialog = true;
   try { await manyNow(keys); } finally { dialog = false; many = null; render(); }
 }
@@ -1322,6 +1325,42 @@ function undoSend() {
   render();
   focusOn('senddel');
 }
+/** "Go to Delete" on that bar: the bar stays in step 3, so its Undo is still there (canvas v54). */
+function goDelete() {
+  const b = sentBar;
+  go(3);
+  if (b) { sentBar = b; render(); focusOn('undosend'); }
+}
+/**
+ * "Back to Choose" / "Put N back in Choose" (canvas v54): videos with no YouTube copy leave Delete and are
+ * in Choose again, unticked. Videos on YouTube are not touched. Nothing is written to Google Photos.
+ */
+function backToChoose(keys) {
+  const list = keys.filter((k) => marks.has(k) && !records.has(k));
+  if (!list.length) return;
+  for (const k of list) decide(k, null);
+  sentBar = null;
+  seq += 1;
+  backBar = { keys: list, seq };
+  log(`${count(list.length)} put back in Choose.`);
+  say(BACK.bar(list.length));
+}
+/** Undo on that bar: the same videos are in Delete again, unless one was ticked or moved since. */
+function undoBackToChoose() {
+  const b = backBar;
+  backBar = null;
+  if (!b) return;
+  for (const k of b.keys) if (!marks.has(k) && !records.has(k) && !sel.has(k)) decide(k, 'bare');
+  render();
+  focusOn('send');
+}
+/** The bar above step 3's footer: after Back to Choose, or the grid's send bar kept by "Go to Delete". */
+function delSnack() {
+  const b = backBar ?? sentBar;
+  return h('div', { class: 'snackbox', role: 'status', 'data-key': 'dsnackbox', 'data-deep': true }, b ? h('div', { class: 'snack', 'data-key': `dsnack-${backBar ? 'b' : 's'}${b.seq}`, 'data-deep': true }, mark('check', 20),
+    h('span', null, backBar ? BACK.bar(b.keys.length) : `${b.keys.length} sent to Delete with no YouTube copy, ${gb(b.size)}. Nothing is deleted yet.`),
+    backBar ? button('undobare', 'txt', 'Undo', undoBackToChoose) : button('undosend', 'txt', 'Undo', undoSend)) : null);
+}
 function chooseView(all) {
   if (notice && !lastRun?.halted) return noticeView();
   const list = pile(all);
@@ -1364,7 +1403,7 @@ function chooseView(all) {
     h('footer', { class: 'foot two', 'data-key': 'cfoot', 'data-deep': true },
       h('div', { class: 'snackbox', role: 'status', 'data-key': 'snackbox', 'data-deep': true }, b ? h('div', { class: 'snack', 'data-key': `snack-${b.seq}`, 'data-deep': true }, mark('check', 20),
         h('span', null, `${b.keys.length} sent to Delete with no YouTube copy, ${gb(b.size)}. Nothing is deleted yet.`),
-        button('undosend', 'txt', 'Undo', undoSend), button('godelete', 'txt', 'Go to Delete', () => go(3))) : null),
+        button('undosend', 'txt', 'Undo', undoSend), step === 1 ? button('godelete', 'txt', 'Go to Delete', goDelete) : null) : null),
       h('span', { class: 'pg' }, turn('prev', 'Previous page', 'left', page === 0, () => { page = Math.max(0, page - 1); render(); }), h('span', null, where),
         turn('next', last ? 'Read more videos' : 'Next page', 'right', last && (!more || reading || !!run), () => { if (page + 1 < Math.ceil(gridList().length / perPage())) { page += 1; render(); } else goTo(page + 1, 1); })), note(hints),
       why ? h('span', { class: 'why', id: 'why' }, why) : null,
@@ -1400,7 +1439,7 @@ function watch(key) {
   if (key && !watching) cameFrom = { page, y: scrollY };
   watching = key;
   said = null;
-  if (key) sentBar = null;
+  if (key) sentBar = backBar = null;
   if (key) playClip(key, false); else render();
   toMain();
   // Near the end of what was read: read on, so the arrows do not run out.
@@ -1532,6 +1571,7 @@ function watchView(x, list) {
       h('div', { class: 'film', 'data-key': 'film', 'data-deep': true }, nav('wprev', 'Previous video', 'left', -1, three || at === 0), screen, nav('wnext', 'Next video', 'right', 1, three || at >= list.length - 1))),
     // Keyed, so the note stays one live region while the videos change.
     h('footer', { class: 'foot ask3', 'data-key': 'wfoot', 'data-deep': true }, h('span', { class: 'mute sm side1', id: 'why', role: held?.next === null ? null : 'status', 'data-key': 'side1', 'data-deep': true }, line), // said once
+      three ? button('wback', 'txt', BACK.one, (e) => { if (e.detail > 1) return; const k = watching; backToChoose([k]); leaveWatch(); focusOn('undobare'); }) : null,
       reply('bare', 'wbare', three ? 'btn bare' : 'btn sec', W.bare, !!not3), reply('copy', 'wtick', 'btn', W.copy, !can, three ? null : String(on))),
   ];
 }
@@ -1755,7 +1795,7 @@ function moveTile(x) {
 // ---- both copies of one video, whenever the user wants
 function pair(key) {
   closePlayer();
-  putBar = null;
+  putBar = sentBar = backBar = null;
   cameFrom = { page, y: scrollY };
   pairing = key;
   scrollTo(0, 0);
@@ -1799,7 +1839,14 @@ function pairView(x) {
 // ---- step 3
 const PER = 6;
 const otherwork = () => (run ? 'Wait until uploading has finished.' : busy && busy.kind !== 'list' ? 'Wait a moment.' : '');
+/** Step 3, with the bar above its footer (not in the player or the view of both copies). */
 function deleteView(all) {
+  const out = deleteBody(all);
+  const f = watching || pairing ? null : [out].flat(9).find((e) => e?.tagName === 'FOOTER');
+  f?.prepend(delSnack());
+  return out;
+}
+function deleteBody(all) {
   const rows = delRows(all);
   const bare = rows.filter((x) => x.p === 'choose');
   if (busy?.kind === 'trash' && many) {
@@ -1869,13 +1916,15 @@ function deleteView(all) {
   loadThumbs(shown).catch(() => {});
   const ticks = ticked(rows);
   const x = ticks.length === 1 ? ticks[0] : null; // one ticked: the path for one video
-  const turn = (f, label, sign, by, off) => h('button', { type: 'button', class: 'ib', 'data-f': f, 'aria-label': label, disabled: off, onclick: () => { delPage = Math.max(0, delPage + by); render(); } }, mark(sign, 20));
+  const turn = (f, label, sign, by, off) => h('button', { type: 'button', class: 'ib', 'data-f': f, 'aria-label': label, disabled: off, onclick: () => { delPage = Math.max(0, delPage + by); sentBar = backBar = null; render(); } }, mark(sign, 20));
   const off = !ticks.length ? 'Tick the ones to delete.' : delSeen < pages - 1 ? 'Look at every page first.' : otherwork();
+  const bareTicks = ticks.filter((y) => y.p === 'choose'); // only these can go back; ones on YouTube stay
   return [
     main('del', '', title(`${count(rows.length)} ${rows.length === 1 ? 'is' : 'are'} ready to delete.`),
     h('ul', { class: 'grid three3', 'data-key': 'dgrid', 'data-deep': true }, shown.map(delTile))),
-    h('footer', { class: 'foot' }, pages > 1 ? h('span', { class: 'pg' }, turn('dprev', 'Previous page', 'left', -1, delPage === 0), h('span', null, `Page ${delPage + 1} of ${pages}`), turn('dnext', 'Next page', 'right', 1, delPage >= pages - 1)) : null,
+    h('footer', { class: `foot${bareTicks.length ? ' two' : ''}` }, pages > 1 ? h('span', { class: 'pg' }, turn('dprev', 'Previous page', 'left', -1, delPage === 0), h('span', null, `Page ${delPage + 1} of ${pages}`), turn('dnext', 'Next page', 'right', 1, delPage >= pages - 1)) : null,
       note(listNote || `${ticks.length} ticked. Up to ${PER} at a time.`), off ? h('span', { class: 'why', id: 'why' }, off) : null,
+      bareTicks.length ? button('putbackn', 'btn sec', BACK.many(bareTicks.length), (e) => { if (e.detail > 1) return; backToChoose(bareTicks.map((y) => y.v.key)); render(); focusOn('undobare'); }) : null,
       button('send', `btn${ticks.some((y) => y.p === 'choose') ? ' bare' : ''}`, x ? `Delete from Google Photos, ${gb(x.v.size)}` : ticks.length ? `Delete ${ticks.length} from Google Photos, ${gb(sum(ticks))}` : 'Delete from Google Photos', deletePicked, { disabled: !!off, 'aria-describedby': off ? 'why' : null })),
   ];
 }
@@ -1886,7 +1935,7 @@ function delTile(x) {
   const name = v.fileName ?? 'the video';
   const when = Number.isFinite(v.timestamp) ? day(v.timestamp) : '';
   return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: 'vid' },
-    h('input', { class: 'cb', type: 'checkbox', checked: on, 'data-f': `del-${v.key}`, 'aria-label': `Delete ${name}, ${when}, ${gb(v.size)}, ${there ? 'on YouTube' : 'no YouTube copy'}`, onchange: (e) => { if (!e.target.checked) picks.delete(v.key); else if (ticked().length < PER) picks.add(v.key); else e.target.checked = false; render(); } }),
+    h('input', { class: 'cb', type: 'checkbox', checked: on, 'data-f': `del-${v.key}`, 'aria-label': `Delete ${name}, ${when}, ${gb(v.size)}, ${there ? 'on YouTube' : 'no YouTube copy'}`, onchange: (e) => { if (!e.target.checked) picks.delete(v.key); else if (ticked().length < PER) picks.add(v.key); else e.target.checked = false; sentBar = backBar = null; render(); } }),
     h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': there ? `Look at both copies of ${name}, ${when}` : `Watch ${name}, ${when}`, onclick: () => (there ? pair(v.key) : watch(v.key)) }, thumbOf(v.key), v.duration > 0 ? h('span', { class: 'len' }, length(v.duration)) : null),
     h('span', { class: 'cap' }, h('b', null, gb(v.size)), there ? h('span', { class: 'line1 c-safe' }, mark('check', 16), 'On YouTube') : h('span', { class: 'line1 c-stop' }, mark('stop', 16), 'No YouTube copy'))));
 }
