@@ -49,7 +49,7 @@ export function doneWords(list) {
   return {
     ...phoneWords(n),
     title: n > 1 ? `${n} are in the Google Photos trash.` : 'It is in the Google Photos trash.',
-    sub: n > 1 ? `${count(n)}, ${gb(total)}.` : `${last.fileName}, ${gb(last.size)}.`,
+    facts: n > 1 ? `${count(n)}, ${gb(total)}.` : `${last.fileName}, ${gb(last.size)}.`, // beside the heading; `sub` is the iPhone's line
     size: n > 1 ? total : last.size,
   };
 }

@@ -56,14 +56,16 @@ test('the step 3 player and the grey button while reading use the v51 words', ()
 test('the done page follows one count, the videos deleted in this visit, also after two single deletes (v52)', () => {
   const one = doneWords([{ fileName: 'IMG_4101.MOV', size: 2_000_000_000 }]);
   assert.equal(one.title, 'It is in the Google Photos trash.');
-  assert.equal(one.sub, 'IMG_4101.MOV, 2.00 GB.');
+  assert.equal(one.facts, 'IMG_4101.MOV, 2.00 GB.');
+  assert.equal(one.sub, 'It will be in Recently Deleted for 30 days.');
   assert.equal(one.head, 'Now remove it from your iPhone');
   assert.equal(one.it, 'it');
   assert.equal(one.ask, 'Allow “Google Photos” to delete this video?');
   // 1 then 1: two single deletes in one visit read as 2, the heading included.
   const two = doneWords([{ fileName: 'IMG_4101.MOV', size: 2_000_000_000 }, { fileName: 'IMG_4102.MOV', size: 750_000_000 }]);
   assert.equal(two.title, '2 are in the Google Photos trash.');
-  assert.equal(two.sub, '2 videos, 2.75 GB.');
+  assert.equal(two.facts, '2 videos, 2.75 GB.');
+  assert.equal(two.sub, 'They will be in Recently Deleted for 30 days.');
   assert.equal(two.head, 'Now remove them from your iPhone');
   assert.equal(two.it, 'them');
   assert.equal(two.ask, 'Allow “Google Photos” to delete 2 videos?');

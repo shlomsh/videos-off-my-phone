@@ -1612,7 +1612,7 @@ function deleteView(all) {
     const gain = out.total > 0 ? h('div', { class: 'gain', title: out.words }, ring(34, 18, 5, out.part),
       h('span', { class: 'stack g4' }, h('strong', null, size > 0 ? [h('span', { class: 'c-safe' }, `+${gb(size)}`), ' · '] : null, `${gb(out.total)} moved out so far`),
         h('span', { class: 'sm mute' }, [`${count(out.n)}.`, out.next ? `${gb(out.next * 1e9 - out.total)} more to ${out.next} GB.` : ''].filter(Boolean).join(' ')))) : null;
-    return [main('done', 'aft', h('div', { class: 'ttl' }, h('span', { class: 'c-ink', style: 'align-self:center' }, mark('check', 30)), h('h1', null, ph.title), h('span', { class: 'mute' }, ph.sub), gain),
+    return [main('done', 'aft', h('div', { class: 'ttl' }, h('span', { class: 'c-ink', style: 'align-self:center' }, mark('check', 30)), h('h1', null, ph.title), h('span', { class: 'mute' }, ph.facts), gain),
       h('section', { class: `ph3${warn ? ' tight' : ''}`, 'aria-labelledby': 'ph3h' }, warn ? h('div', { class: 'vwarn', role: 'status' }, mark('info', 20), h('span', null, warn)) : null, h('h2', { id: 'ph3h' }, ph.head), h('ol', null,
         h('li', null, phone(h('div', { class: 'fbar' }, h('span', { class: 'fq' }, 'Search'), h('span', { class: 'fav' }, initial(channel?.title), tap())), h('div', { class: 'fgrid' }, COLORS.map((c) => h('span', { style: `--c:${c}` })))),
           stepText(1, 'Open ', strong('Google Photos'), ' on your iPhone. Tap your picture, top right.')),
