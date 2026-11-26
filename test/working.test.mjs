@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ytProgress, keepHighest, leftWords, progressWords, agoWords, checkedWords, isSlow, tabTitle, SLOW_NOTE } from '../extension/ui/working.js';
+import { ytProgress, keepHighest, leftWords, progressWords, agoWords, checkedWords, isSlow, tabTitle, SLOW_NOTE, askEvery } from '../extension/ui/working.js';
 
 const vid = (p) => ({ processingDetails: { processingStatus: 'processing', processingProgress: p } });
 
@@ -97,4 +97,39 @@ test('the tab title', () => {
   assert.equal(tabTitle({ ready: 3, youtube: 1, ytPct: 40 }), '✓ 3 ready to delete – Videos Off My Phone');
   assert.equal(tabTitle({ upload: 10, ready: 1, youtube: 1, ytPct: 40 }), 'Uploading 10% – Videos Off My Phone');
   assert.equal(tabTitle({ ready: 0, youtube: 0, ytPct: 50 }), 'Videos Off My Phone');
+});
+
+test('YouTube is asked less often the longer a video has been with it', () => {
+  const now = Date.parse('2026-11-26T12:00:00Z');
+  const ago = (ms) => new Date(now - ms).toISOString();
+  const M = 60_000; const H = 60 * M;
+  assert.equal(askEvery([ago(0)], now), M);
+  assert.equal(askEvery([ago(12 * M)], now), M);
+  assert.equal(askEvery([ago(H - 1)], now), M);
+  assert.equal(askEvery([ago(H)], now), 5 * M); // the first hour is over
+  assert.equal(askEvery([ago(3 * H)], now), 5 * M);
+  assert.equal(askEvery([ago(6 * H - 1)], now), 5 * M);
+  assert.equal(askEvery([ago(6 * H)], now), 15 * M);
+  assert.equal(askEvery([ago(3 * 24 * H)], now), 15 * M);
+  // Milliseconds work as well as ISO text.
+  assert.equal(askEvery([now - 2 * H], now), 5 * M);
+});
+
+test('one question covers them all, so the youngest sets the pace', () => {
+  const now = Date.parse('2026-11-26T12:00:00Z');
+  const ago = (ms) => new Date(now - ms).toISOString();
+  assert.equal(askEvery([ago(30 * 3600_000), ago(5 * 60_000)], now), 60_000);
+  assert.equal(askEvery([ago(30 * 3600_000), ago(2 * 3600_000)], now), 5 * 60_000);
+});
+
+test('an unknown or odd upload time never makes it ask every minute for ever', () => {
+  const now = Date.parse('2026-11-26T12:00:00Z');
+  assert.equal(askEvery([undefined], now), 15 * 60_000);
+  assert.equal(askEvery(['not a date'], now), 15 * 60_000);
+  assert.equal(askEvery([null], now), 15 * 60_000);
+  // A time in the future (a clock that was off) counts as just uploaded.
+  assert.equal(askEvery([new Date(now + 3600_000).toISOString()], now), 60_000);
+  // Nothing with YouTube: the plain minute, as before.
+  assert.equal(askEvery([], now), 60_000);
+  assert.equal(askEvery(undefined, now), 60_000);
 });

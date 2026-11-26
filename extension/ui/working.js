@@ -65,6 +65,23 @@ export function checkedWords(ms) {
   return `Checked ${span(m)} ago.`;
 }
 
+/**
+ * How long to wait before asking YouTube again, while videos are with it. One question covers them all,
+ * so the youngest one sets the pace, counted from its upload time:
+ *   under 1 hour: every minute; under 6 hours: every 5 minutes; after that: every 15 minutes.
+ * An unknown upload time counts as old, so a broken record can never ask every minute for ever.
+ * "Check now" does not wait for this.
+ */
+export const ASK_STEPS = [[HOUR, MIN], [6 * HOUR, 5 * MIN], [Infinity, 15 * MIN]];
+export function askEvery(ats, now = Date.now()) {
+  const gaps = [...(ats ?? [])].map((at) => {
+    const t = typeof at === 'number' ? at : Date.parse(at ?? '');
+    const age = Number.isFinite(t) ? Math.max(0, now - t) : Infinity;
+    return (ASK_STEPS.find(([upTo]) => age < upTo) ?? ASK_STEPS[ASK_STEPS.length - 1])[1];
+  });
+  return gaps.length ? Math.min(...gaps) : MIN;
+}
+
 /** With YouTube for over an hour, counted from the upload time. */
 export function isSlow(at, now = Date.now()) {
   const t = typeof at === 'number' ? at : Date.parse(at ?? '');

@@ -11,13 +11,13 @@ import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainEr
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, gate, canCopy, factsFor, differs } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
-import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle } from './ui/working.js';
+import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle, askEvery } from './ui/working.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const log = (m) => { $('log').textContent += `${clock()}  ${m}\n`; };
 const say = (text) => { $('live').textContent = text; };
-const ASK_EVERY = 60_000; // while something is with YouTube and this page is open
+// While something is with YouTube and this page is open, it is asked again: every minute at first, then less often (askEvery).
 
 // ---- state
 let step = 1; // 1 choose, 2 move, 3 delete
@@ -62,6 +62,7 @@ let askFailed = false;
 const best = new Map(); // YouTube id -> the highest progress YouTube gave: { pct, leftMs }
 const cameNew = new Set(); // keys seen with YouTube, or uploaded, in this visit: their arrival in Delete is news
 let ytWaiting = false; // something of this channel is with YouTube (as last drawn)
+let ytEvery = 60_000; // how often YouTube is asked about it now (as last drawn)
 let liveShown = false; // the Move list with its live line is on screen
 // deleting
 let marks = new Map(); // key -> { decision: 'bare', at, taken }: to be deleted without a copy
@@ -158,12 +159,16 @@ function settle() {
   if (busy) return;
   if (step === 1 && !started && photosOpen) return goTo(0);
   const own = moved().filter((x) => x.v.record.channel === channel.id);
-  const waits = own.some((x) => ['sent', 'proc'].includes(x.st.s));
+  const out = own.filter((x) => ['sent', 'proc'].includes(x.st.s));
+  const waits = out.length > 0;
   const fresh = own.some((x) => x.st.s === 'sent' && !asked.has(x.v.record.id)); // listed since YouTube was asked
   // Never while a delete waits for its yes; never two questions at once (askYouTube keeps to one).
-  if (!asking && !askFailed && !dialog && (fresh || waits && Date.now() - askedAt >= ASK_EVERY)) askYouTube();
+  if (!asking && !askFailed && !dialog && (fresh || waits && Date.now() - askedAt >= askGap(out))) askYouTube();
   if (step === 3 && photosOpen && unread().length && !lock()) readMarked();
 }
+
+/** How long to wait before asking YouTube again about these: by how long the youngest has been with it. */
+const askGap = (rows) => askEvery(rows.map((x) => x.v.record?.at));
 
 // ---- sign-in
 const signInFresh = () => work('signin', 'Signing in', async () => {
@@ -1038,6 +1043,7 @@ const needs = (list) => list.filter((x) => ['look', 'lost'].includes(x.p)).lengt
 function paintTitle(all) {
   const yt = channel ? all.filter((x) => x.v.record?.channel === channel.id && withYouTube(x)) : [];
   ytWaiting = yt.length > 0;
+  ytEvery = channel ? askGap(all.filter((x) => x.v.record?.channel === channel.id && ['sent', 'proc'].includes(x.st.s))) : 60_000;
   for (const x of yt) if (x.st.s === 'proc') cameNew.add(x.v.key);
   const fresh = channel ? onYouTube(all).filter((x) => cameNew.has(x.v.key)) : [];
   if (step === 3) for (const x of fresh) cameNew.delete(x.v.key); // seen: Delete is open
@@ -1518,12 +1524,13 @@ addEventListener('visibilitychange', cameBack);
 chrome.tabs.onRemoved.addListener(watchPhotos);
 chrome.tabs.onUpdated.addListener((id, change) => { if (change.url || change.status === 'complete') watchPhotos(); });
 setInterval(() => { if (channel && !busy) { render(); settle(); } }, 15_000); // YouTube is asked again now and then
-// Each second: the live line counts on, and YouTube is asked again once a minute while it has something.
+// Each second: the live line counts on, and YouTube is asked again while it has something:
+// every minute in the first hour after the upload, then every 5 minutes, after 6 hours every 15 (askEvery).
 // settle() asks only when nothing else runs (no upload, no delete, no question open) and nothing is being asked.
 setInterval(() => {
   if (!channel) return;
   if (liveShown) render();
-  if (ytWaiting && !busy && !dialog && !asking && !askFailed && Date.now() - askedAt >= ASK_EVERY) settle();
+  if (ytWaiting && !busy && !dialog && !asking && !askFailed && Date.now() - askedAt >= ytEvery) settle();
 }, 1000);
 await dropKeeps();
 records = await allRecords();
