@@ -195,3 +195,27 @@ export async function getStatus(clientId, id) {
   if (!v) throw new FatalError('YouTube does not list the uploaded video.');
   return v;
 }
+
+/**
+ * Every video on the signed-in channel, read to the end (for finding moved videos again, v43).
+ * channels?part=contentDetails&mine=true gives the uploads list; playlistItems?part=contentDetails
+ * gives its video ids, 50 a page; then videos?part=...,fileDetails,... as getStatuses asks.
+ * Read-only. Throws unless the whole list was read, so "not found" is never said from part of it.
+ */
+export async function listUploads(clientId, channelId) {
+  const ch = (await (await call(clientId, `${API}/channels?part=contentDetails&mine=true`)).json()).items?.[0];
+  if (!ch || ch.id !== channelId) throw new FatalError('That is a different YouTube channel.');
+  const list = ch.contentDetails?.relatedPlaylists?.uploads;
+  if (!list) throw new FatalError('YouTube did not give the list of your uploads.');
+  const ids = [];
+  let page = '';
+  for (let i = 0; ; i++) {
+    if (i >= 400) throw new FatalError('The list of your uploads is too long to read here.');
+    const q = new URLSearchParams({ part: 'contentDetails', playlistId: list, maxResults: '50', ...(page && { pageToken: page }) });
+    const j = await (await call(clientId, `${API}/playlistItems?${q}`)).json();
+    for (const it of j.items ?? []) if (it.contentDetails?.videoId) ids.push(it.contentDetails.videoId);
+    page = j.nextPageToken ?? '';
+    if (!page) break;
+  }
+  return [...(await getStatuses(clientId, [...new Set(ids)])).values()];
+}
