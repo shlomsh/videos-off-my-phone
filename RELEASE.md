@@ -1,4 +1,11 @@
-# Before an official release
+# Videos Off My Phone: before an official release
+
+## Your priorities (26 Nov 2026)
+1. Get the official Chrome Web Store listing and Google sign-in going for public use; improve afterwards. (Its own session, working in your Chrome.)
+2. Run end-to-end tests in your own Chrome, to see it works as expected. (Here, once 0.10.0 is installed.)
+3. Bug fixing and polish.
+
+Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
 
 Last updated: 26 Nov 2026. Installed version: 0.8.2.
 
@@ -64,7 +71,11 @@ Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release
 - [x] Name chosen: **Videos Off My Phone**. GitHub repo renamed to `videos-off-my-phone`. Research is in [docs/naming.md](docs/naming.md); the draft listing is in [docs/listing.md](docs/listing.md).
 - [ ] Rename it inside the app (manifest, page titles, texts), after the current build.
 - [ ] Say the point on the start page and in the listing: YouTube storage doesn't count toward your Google storage. Free and open source. (Design session.)
-- [ ] **Open source:** make the repo public, add a license, and keep the personal email out of the public history. Remove `UX_PROMPT.md` (an old internal brief with a local path) first.
+- [ ] **Open source** (your answers, 26 Nov 2026):
+  - Make the repo public after the current build. Ask once more before switching.
+  - License: **MIT**.
+  - The author is your GitHub noreply address from now on. Once the branches are merged, rewrite the old commits to it too, before the repo goes public.
+  - Remove `UX_PROMPT.md` (an old internal brief with a local path) and write an open-source README first.
 
 ## Housekeeping
 - [x] Put the folder in git, with a private GitHub repo.

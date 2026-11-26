@@ -1,4 +1,4 @@
-# Video Offload: release plan for family and friends
+# Videos Off My Phone: release plan for family and friends
 
 Research date: 26 Nov 2026. Official sources first. Where I found nothing official, I say so.
 
