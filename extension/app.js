@@ -412,8 +412,8 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
       startSession: (d, privacy) => yt.startSession(CLIENT_ID, yt.buildVideo({ ...d, privacy: VIS.includes(privacy) ? privacy : 'private', madeForKids: false }), {
         size: d.size, type: /\.mov$/i.test(d.fileName) ? 'video/quicktime' : 'video/*',
       }),
-      stream: ({ details: d, key, sessionUri, onProgress }) => streamToSession({
-        size: d.size, signal, sessionUri, getAuth, onProgress, getUrl: () => photos.getDownloadUrl(tabId, key),
+      stream: ({ details: d, key, sessionUri, from, onProgress }) => streamToSession({
+        size: d.size, from, signal, sessionUri, getAuth, onProgress, getUrl: () => photos.getDownloadUrl(tabId, key),
       }),
     }, {
       signal,
