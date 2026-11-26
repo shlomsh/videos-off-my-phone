@@ -1663,7 +1663,7 @@ addEventListener('keydown', (e) => {
 }, true);
 addEventListener('beforeunload', (e) => { if (busy && !['signin', 'list', 'one'].includes(busy.kind)) e.preventDefault(); });
 addEventListener('focus', () => { watchPhotos().then(cameBack); });
-addEventListener('visibilitychange', cameBack);
+addEventListener('visibilitychange', () => { if (!document.hidden) render(); cameBack(); }); // the live line was not redrawn while hidden
 chrome.tabs.onRemoved.addListener(watchPhotos);
 chrome.tabs.onUpdated.addListener((id, change) => { if (change.url || change.status === 'complete') watchPhotos(); });
 setInterval(() => { if (channel && !busy) { render(); settle(); } }, 15_000); // YouTube is asked again now and then
@@ -1672,7 +1672,7 @@ setInterval(() => { if (channel && !busy) { render(); settle(); } }, 15_000); //
 // settle() asks only when nothing else runs (no upload, no delete, no question open) and nothing is being asked.
 setInterval(() => {
   if (!channel) return;
-  if (liveShown) render();
+  if (liveShown && !document.hidden) render(); // asking goes on while hidden (the tab title follows it); drawing does not
   if (ytWaiting && !busy && !dialog && !asking && !askFailed && Date.now() - askedAt >= ytEvery) settle();
 }, 1000);
 await dropKeeps();
