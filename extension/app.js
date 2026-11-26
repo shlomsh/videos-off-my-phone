@@ -11,12 +11,13 @@ import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainEr
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, gate, canCopy, factsFor, differs } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
+import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle } from './ui/working.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const log = (m) => { $('log').textContent += `${clock()}  ${m}\n`; };
 const say = (text) => { $('live').textContent = text; };
-const ASK_EVERY = 5 * 60_000;
+const ASK_EVERY = 60_000; // while something is with YouTube and this page is open
 
 // ---- state
 let step = 1; // 1 choose, 2 move, 3 delete
@@ -58,6 +59,10 @@ const asked = new Set();
 let askedAt = 0;
 let asking = false;
 let askFailed = false;
+const best = new Map(); // YouTube id -> the highest progress YouTube gave: { pct, leftMs }
+const cameNew = new Set(); // keys seen with YouTube, or uploaded, in this visit: their arrival in Delete is news
+let ytWaiting = false; // something of this channel is with YouTube (as last drawn)
+let liveShown = false; // the Move list with its live line is on screen
 // deleting
 let marks = new Map(); // key -> { decision: 'bare', at, taken }: to be deleted without a copy
 let notes = new Map(); // what was sent to the trash, and whether it was cleared up
@@ -127,7 +132,7 @@ async function work(kind, name, task) {
 }
 
 function forgetAnswers() {
-  statuses.clear(); asked.clear(); askedAt = 0; askFailed = false;
+  statuses.clear(); asked.clear(); askedAt = 0; askFailed = false; best.clear(); cameNew.clear();
   held.clear(); ready.clear(); details.clear(); place.clear(); goneNote = '';
 }
 
@@ -155,7 +160,8 @@ function settle() {
   const own = moved().filter((x) => x.v.record.channel === channel.id);
   const waits = own.some((x) => ['sent', 'proc'].includes(x.st.s));
   const fresh = own.some((x) => x.st.s === 'sent' && !asked.has(x.v.record.id)); // listed since YouTube was asked
-  if (!asking && !askFailed && (fresh || waits && Date.now() - askedAt > ASK_EVERY)) askYouTube();
+  // Never while a delete waits for its yes; never two questions at once (askYouTube keeps to one).
+  if (!asking && !askFailed && !dialog && (fresh || waits && Date.now() - askedAt >= ASK_EVERY)) askYouTube();
   if (step === 3 && photosOpen && unread().length && !lock()) readMarked();
 }
 
@@ -394,7 +400,6 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
   const show = (key, part) => {
     const now = (part ?? 0) * byKey.get(key).size;
     progress = { key, index, count: list.length, bytes: before + now, total, sent: sent + sending, seconds: (Date.now() - startedAt) / 1000 };
-    document.title = `${pct()}% · Videos Off My Phone`;
     render();
   };
   let stop = null;
@@ -435,10 +440,10 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
     stop = e;
     throw e;
   } finally {
-    document.title = 'Videos Off My Phone';
     run = null;
     records = await allRecords();
     const up = list.filter((v) => records.get(v.key)?.state === 'uploaded');
+    for (const v of up) cameNew.add(v.key);
     // What is left stays ticked. What did not arrive is tried again only when the user says so.
     for (const v of list) if (up.includes(v) || failed.has(v.key) || records.get(v.key)?.state === 'uncertain') { sel.delete(v.key); queued.delete(v.key); }
     lastRun = {
@@ -499,7 +504,7 @@ async function askYouTube(getAuth = () => yt.getToken(CLIENT_ID, false)) {
     const found = ids.length ? await yt.getStatuses(CLIENT_ID, ids) : new Map();
     if (ch !== channel?.id) return;
     for (const id of ids) { asked.add(id); statuses.delete(id); }
-    for (const [id, v] of found) statuses.set(id, v);
+    for (const [id, v] of found) { statuses.set(id, v); best.set(id, keepHighest(best.get(id), ytProgress(v))); }
     askedAt = Date.now();
     held.clear(); ready.clear();
     for (const [key, d] of details) if (d) judge(key); else details.delete(key);
@@ -1006,7 +1011,9 @@ function render() {
 }
 function paint() {
   const all = everything();
+  liveShown = false;
   paintBar(all);
+  paintTitle(all);
   draw($('view'), !channel ? startView() : want && !run ? pausedCheck() : step === 1 ? chooseView(all) : step === 2 ? moveView(all) : deleteView(all));
 }
 
@@ -1027,6 +1034,21 @@ function noticeView() {
 }
 
 const needs = (list) => list.filter((x) => ['look', 'lost'].includes(x.p)).length;
+/** The tab title says how far it is, so it can be followed from another tab. */
+function paintTitle(all) {
+  const yt = channel ? all.filter((x) => x.v.record?.channel === channel.id && withYouTube(x)) : [];
+  ytWaiting = yt.length > 0;
+  for (const x of yt) if (x.st.s === 'proc') cameNew.add(x.v.key);
+  const fresh = channel ? onYouTube(all).filter((x) => cameNew.has(x.v.key)) : [];
+  if (step === 3) for (const x of fresh) cameNew.delete(x.v.key); // seen: Delete is open
+  const known = yt.map(ytAt).filter(Boolean).map((p) => p.pct);
+  const text = tabTitle({
+    upload: run && progress ? pct() : null, paused: !!want,
+    ready: step === 3 ? 0 : fresh.length,
+    youtube: yt.length, ytPct: known.length ? Math.min(...known) : null,
+  });
+  if (document.title !== text) document.title = text;
+}
 function paintBar(all) {
   $('path').hidden = $('av').hidden = !channel;
   const n1 = toCopy(all).filter((x) => canCopy(x.st.s)).length;
@@ -1035,7 +1057,7 @@ function paintBar(all) {
   const n3 = onYouTube(all).length + [...marks].filter(([k]) => !records.has(k)).length;
   const subs = [
     busy?.kind === 'list' ? `${n1} so far` : started || n1 ? (n1 ? count(n1) : 'Nothing left') : 'Not read yet',
-    run ? (want ? 'Paused' : `${pct()}%`) : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : lastRun && (lastRun.stopped || lastRun.halted) && waiting(all).length ? 'Stopped' : 'Nothing to do',
+    run ? (want ? 'Paused' : `${pct()}%`) : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : lastRun && (lastRun.stopped || lastRun.halted) && waiting(all).length ? 'Stopped' : rows2.some(withYouTube) ? 'YouTube working' : 'Nothing to do',
     busy?.kind === 'trash' ? 'Deleting' : lock() ? 'Look first' : n3 ? count(n3) : trashed ? 'Nothing left' : 'Nothing yet',
   ];
   draw($('path'), ['Choose', 'Move', 'Delete'].map((name, i) => h('li', null, h('button', { type: 'button', 'aria-current': step === i + 1 ? 'step' : 'false', 'data-f': `step-${i + 1}`, onclick: () => go(i + 1) },
@@ -1223,10 +1245,14 @@ function watchView(x, list) {
 // ---- step 2
 /** Ticked and started, and waiting for "Continue". */
 const waiting = (all) => (run ? [] : moveRows(all).filter((x) => x.p === 'moving' && sel.has(x.v.key) && canCopy(x.st.s)));
+/** Uploaded, and YouTube is still at it: in step 2, with a live line and a bar on its picture. */
+const withYouTube = (x) => x.p === 'working' && (x.st.s === 'proc' || x.st.s === 'sent' && !(askFailed && !asking));
+/** How far YouTube is with it: { pct, leftMs } as YouTube said (never lower than before), or null. */
+const ytAt = (x) => (x.v.record?.id && best.get(x.v.record.id)) || null;
 /** The one state under a picture. */
 function caption(x) {
   const { st, p, v } = x;
-  const out = (kind, text, tone, part) => ({ kind, text, tone, part });
+  const out = (kind, text, tone, part, more = {}) => ({ kind, text, tone, part, ...more });
   const part = run?.get(v.key)?.part;
   const n = Math.floor((part ?? 0) * 100);
   if (p === 'look') return out('ask', 'Please look', 'c-wait');
@@ -1234,14 +1260,30 @@ function caption(x) {
   if (p === 'moving') return part === undefined ? out('up', 'Waiting', 'mute') : st.s === 'pause' ? out('up', `Paused at ${n}%`, 'c-wait', n) : out('up', `Uploading ${n}%`, 'c-go', n);
   if (st.s === 'again') return out('info', 'Moved before', 'mute');
   if (p === 'stays') return /shared album/.test(st.ax) ? out('held', 'Stays: shared album', 'mute') : out('info', /another channel/i.test(st.word) ? 'Stays: another channel' : 'Stays: not fully checked', 'mute');
-  if (st.s === 'proc') return out('clock', 'YouTube is working', 'c-yt');
-  if (st.s === 'sent') return askFailed && !asking ? out('info', 'Not known now', 'mute') : out('clock', 'YouTube is working', 'c-yt');
+  if (withYouTube(x)) {
+    // A known % fills the bar; without one, the bar is striped and the line counts up from the upload.
+    const at = ytAt(x);
+    return at ? out('clock', 'YouTube is working', 'c-yt', at.pct, { sub: progressWords(at) })
+      : out('clock', 'YouTube is working', 'c-yt', 100, { sub: agoWords(v.record?.at), striped: true });
+  }
+  if (st.s === 'sent') return out('info', 'Not known now', 'mute');
   return details.has(v.key) && !details.get(v.key) && !loading ? out('info', 'Not known now', 'mute') : out('clock', 'Comparing…', 'mute');
 }
 /** The next step: the videos that can be deleted now, or choosing more. */
-function nextFoot(all, left) {
+function nextFoot(all, left, { sec = false } = {}) {
   const n = delRows(all).length;
-  return n ? foot(left, 'todelete', `Next: delete ${n}`, () => go(3)) : foot(left, 'tochoose', 'Choose videos', () => go(1));
+  return n ? foot(left, 'todelete', `Next: delete ${n}`, () => go(3)) : foot(left, 'tochoose', 'Choose videos', () => go(1), { sec });
+}
+/** "Checked 20 seconds ago. Check now": from the last real answer, and redrawn each second while shown. */
+function liveLine() {
+  const text = asking && !askedAt ? 'Asking YouTube…' : checkedWords(askedAt ? Date.now() - askedAt : NaN);
+  return h('span', { class: 'live sm', 'data-key': 'live', 'data-deep': true }, h('i', { 'aria-hidden': 'true' }), h('span', null, text),
+    h('button', { type: 'button', class: 'lnkb', 'data-f': 'checknow', 'aria-disabled': asking ? 'true' : null, onclick: checkNow }, asking ? 'Checking…' : 'Check now'));
+}
+/** Asks YouTube at once. One question at a time: while one is out, this does nothing. */
+function checkNow() {
+  if (asking || (busy && busy.kind !== 'list') || dialog) return;
+  askAgain();
 }
 function moveView(all) {
   const list = moveRows(all);
@@ -1250,7 +1292,8 @@ function moveView(all) {
   if (notice && !run && !lastRun?.halted) return noticeView();
   if (!list.length) return calm('quiet', 'check', 'c-safe', 'Nothing needs you here.', 'What you move shows its progress here. What passes every check goes to Delete by itself.', nextFoot(all, note(goneNote)));
   const of = (p) => list.filter((x) => x.p === p);
-  const work_ = of('working').filter((x) => x.st.s === 'proc').length;
+  const withYT = list.filter(withYouTube);
+  const work_ = withYT.length;
   const lost = of('lost').length;
   const wait = waiting(all);
   const go_ = 'They move on to Delete by themselves.';
@@ -1278,11 +1321,19 @@ function moveView(all) {
         : open ? { head: asking ? 'Asking YouTube…' : 'Comparing the copies…', sub: '' }
           : look + lost ? { head: `${count(look + lost)} ${look + lost === 1 ? 'needs' : 'need'} you.`, sub: '' }
             : { head: 'Nothing needs you here.', sub: wait.length ? '' : `${count(list.length)} ${list.length === 1 ? 'stays' : 'stay'} in Google Photos.` };
-    v.foot = photosOpen === false && open ? foot(note(later), 'photos3', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' }) : nextFoot(all, note(later));
+    v.foot = photosOpen === false && open ? foot(note(later), 'photos3', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' }) : nextFoot(all, note(later), { sec: !!work_ });
+    if (work_) {
+      v.live = liveLine();
+      if (withYT.some((x) => isSlow(x.v.record?.at))) v.slow = SLOW_NOTE;
+    }
   }
+  liveShown = !!v.live;
   loadThumbs(list.slice(0, 40)).catch(() => {});
   return [
-    main('move', 's2', h('div', { class: 'stack g16' }, title(v.head, v.sub),
+    main('move', 's2', h('div', { class: 'stack g16', 'data-key': 'top', 'data-deep': true },
+      // Keyed, so the line that counts each second is redrawn alone and the dot keeps its pulse.
+      h('div', { class: 'ttl', 'data-key': 'ttl', 'data-deep': true }, h('h1', null, v.head), v.sub ? h('span', { class: 'mute' }, v.sub) : null, v.live ?? null,
+        v.slow ? h('p', { class: 'vwarn slowp', 'data-key': 'slow' }, mark('info', 20), h('span', null, v.slow)) : null),
       v.n === undefined ? null : h('div', { class: 'line g16 barline' }, h('span', { class: 'pc' }, `${v.n}%`),
         h('div', { class: `prog${v.isHeld ? ' held' : ''}`, role: 'progressbar', 'aria-label': 'Uploaded', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(v.n) }, h('span', { style: `width:${v.n}%` })),
         v.small ? h('span', { class: 'mute sm' }, v.small) : null)),
@@ -1293,9 +1344,11 @@ function moveView(all) {
 function moveTile(x) {
   const { v } = x;
   const c = caption(x);
-  return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: 'vid' },
-    h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': `${c.text}. Look at both copies of ${v.fileName ?? 'the video'}`, onclick: () => pair(v.key) }, thumbOf(v.key), c.part === undefined ? null : h('span', { class: 'pb' }, h('i', { style: `width:${c.part}%` }))),
-    h('span', { class: 'cap' }, h('b', { class: c.tone }, mark(c.kind, 16), c.text))));
+  // Keyed down to the picture, so a striped bar keeps moving while the line under it counts.
+  return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: 'vid', 'data-key': 'vid', 'data-deep': true },
+    h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': `${c.text}. Look at both copies of ${v.fileName ?? 'the video'}`, onclick: () => pair(v.key) }, thumbOf(v.key),
+      c.part === undefined ? null : h('span', { class: `pb${c.striped ? ' ind' : ''}`, 'aria-hidden': 'true' }, h('i', { style: `width:${c.part}%` }))),
+    h('span', { class: 'cap' }, h('b', { class: c.tone }, mark(c.kind, 16), c.text), c.sub ? h('span', { class: 'tsub' }, c.sub) : null)));
 }
 
 // ---- both copies of one video, whenever the user wants
@@ -1461,6 +1514,13 @@ addEventListener('visibilitychange', cameBack);
 chrome.tabs.onRemoved.addListener(watchPhotos);
 chrome.tabs.onUpdated.addListener((id, change) => { if (change.url || change.status === 'complete') watchPhotos(); });
 setInterval(() => { if (channel && !busy) { render(); settle(); } }, 15_000); // YouTube is asked again now and then
+// Each second: the live line counts on, and YouTube is asked again once a minute while it has something.
+// settle() asks only when nothing else runs (no upload, no delete, no question open) and nothing is being asked.
+setInterval(() => {
+  if (!channel) return;
+  if (liveShown) render();
+  if (ytWaiting && !busy && !dialog && !asking && !askFailed && Date.now() - askedAt >= ASK_EVERY) settle();
+}, 1000);
 await dropKeeps();
 records = await allRecords();
 marks = await allMarks();
