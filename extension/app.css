@@ -208,6 +208,7 @@ container-type:inline-size;min-height:100vh;background:var(--bg);color:var(--ink
 .ge .path .num{width:28px;height:28px;font-size:14px}
 .ge .path .nl{display:none}.ge .path .ns{display:inline;white-space:nowrap}
 .ge .won{margin-left:auto}
+.ge .path button{position:relative}.ge .path em.plus{position:absolute;top:-6px;right:-4px;margin:0;padding:3px 6px;font-size:11px} /* the "+N" as a corner badge, so the row still fits */
 }
 
 /* what the real page needs on top of the design */
