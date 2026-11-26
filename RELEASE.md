@@ -19,8 +19,10 @@ Merged on local main. 158 unit tests and 405 stand-in end-to-end checks pass. Pu
 - [x] Wording set v45–v49: one vocabulary, player Skip/Move with Undo, batch "Send N to Delete, no copy", faded "In Move" / "In Delete" tiles in Choose.
 - [x] Title and description on YouTube (v50): the Move dialog lets you change the title; the description ends with "Original file: <name>".
 - [x] Find again (v43 with v50 matching): moved videos are looked up on the channel again before they can be deleted.
-- Real-account test, in progress: [x] version line and menu; [x] player Skip/Undo; [x] grid Send 2 to Delete; [ ] Move one Unlisted with a "Test" title; [ ] check title and description in YouTube Studio; [ ] delete the test videos; [ ] iPhone step.
-- Known gaps, not blocking: once the grid's Undo bar is gone, a no-copy video goes back to Choose only through "Move to YouTube first" (sent to design); a re-found Unlisted copy has no saved visibility, so it is held as "Not as you chose" (the safe side).
+- [x] v54: "Back to Choose" for no-copy videos in step 3 (player and ticked list), with Undo; the grid's Undo bar stays on Go to Delete.
+- Real-account test, in progress: [x] version line and menu; [x] player Skip/Undo; [x] grid Send 2 to Delete; [x] Move 2 as Unlisted with a title ("ori in new york, 25 Jul 2026", description "Original file: IMG_3450.MOV", same channel); they stay in Google Photos because they are in a shared album, as designed; [ ] reload and try v54.
+- Next, 0.13.1: v55 (approved): step 2 words when moved videos stay in a shared album, and a warning in the Move dialog. Faster uploads (read the next piece while sending) are being built on a branch.
+- Known gap, not blocking: a re-found Unlisted copy has no saved visibility, so it is held as "Not as you chose" (the safe side).
 
 ## Built in 0.11.0 (26 Nov 2026)
 - [x] **Who can watch on YouTube** (canvas v32 to v35). Move asks each time: Private (chosen first), Unlisted or Public, with a warning for Public. The choice is stored with each upload. Once a video is on YouTube, the app only shows its visibility and never changes it.
