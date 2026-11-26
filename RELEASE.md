@@ -19,6 +19,15 @@ Last updated: 26 Nov 2026. Installed version: 0.11.0 (tested on stand-ins only; 
 - [x] **The delete question shows the visibility.** For example "On YouTube, Unlisted. Checked just now.", plus "Anyone can watch the YouTube copy." for Public.
 - [x] **"Moved out" counter** in the header and on the done page (hidden while 0), with milestones at 1, 2, 5, 10, 20, 50, 100, 200 and 500 GB.
 
+## YouTube data rules (policy check, 26 Nov 2026)
+Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store session's reading, not legal advice.
+- [ ] **After Remove access:** delete YouTube video IDs, the channel ID and statuses within 7 days. Keep only our own facts: Photos key, size, checksum and dates. (Being built in 0.12.0.)
+- [ ] **Find again:** after a new sign-in, find each moved video on the channel again (title = file name, exact size) before it can be deleted. Not built yet.
+- [ ] **30-day rule:** stored YouTube data must be refreshed or deleted within 30 days, even without revocation. The plan:
+  - re-read every record with videos.list when the app opens, and store the time of that check;
+  - strip the YouTube details of records not checked for 30 days, and find them again later.
+- [ ] **Revoked on Google's own permissions page:** delete the YouTube data within 30 days. The app must notice when its sign-in can't be renewed.
+
 ## Approved, not built yet
 - [ ] Step 1 shows videos that are already in Move or Delete, faded with "In Move" / "In Delete". A click opens them there.
 - [ ] "Do not move it" beside "Try again" for an upload that did not arrive.
