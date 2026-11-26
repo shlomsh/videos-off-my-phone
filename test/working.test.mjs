@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ytProgress, keepHighest, leftWords, progressWords, agoWords, checkedWords, isSlow, tabTitle, SLOW_NOTE, askEvery } from '../extension/ui/working.js';
+import { ytProgress, keepHighest, leftWords, progressWords, agoWords, checkedWords, isSlow, tabTitle, lowestPct, SLOW_NOTE, askEvery } from '../extension/ui/working.js';
 
 const vid = (p) => ({ processingDetails: { processingStatus: 'processing', processingProgress: p } });
 
@@ -132,4 +132,17 @@ test('an unknown or odd upload time never makes it ask every minute for ever', (
   // Nothing with YouTube: the plain minute, as before.
   assert.equal(askEvery([], now), 60_000);
   assert.equal(askEvery(undefined, now), 60_000);
+});
+
+test('the tab title shows a % only when every video with YouTube has one', () => {
+  assert.equal(lowestPct([{ pct: 35, leftMs: 1 }, { pct: 18, leftMs: null }]), 18);
+  assert.equal(lowestPct([{ pct: 0, leftMs: 0 }]), 0);
+  // One without a known %: no %, the same title as with none.
+  assert.equal(lowestPct([{ pct: 10, leftMs: 1 }, null]), null);
+  assert.equal(lowestPct([null]), null);
+  assert.equal(lowestPct([]), null);
+  assert.equal(lowestPct(undefined), null);
+  assert.equal(tabTitle({ youtube: 2, ytPct: lowestPct([{ pct: 10 }, null]) }), tabTitle({ youtube: 2 }));
+  assert.equal(tabTitle({ youtube: 2, ytPct: lowestPct([{ pct: 10 }, null]) }), 'YouTube working – Videos Off My Phone');
+  assert.equal(tabTitle({ youtube: 2, ytPct: lowestPct([{ pct: 10 }, { pct: 40 }]) }), 'YouTube 10% – Videos Off My Phone');
 });

@@ -11,7 +11,7 @@ import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainEr
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, shownPlace, gridPicks, gate, canCopy, factsFor, differs } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
-import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle, askEvery } from './ui/working.js';
+import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle, lowestPct, askEvery } from './ui/working.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -1065,11 +1065,10 @@ function paintTitle(all) {
   for (const x of yt) if (x.st.s === 'proc') cameNew.add(x.v.key);
   const fresh = channel ? onYouTube(all).filter((x) => cameNew.has(x.v.key)) : [];
   if (step === 3) for (const x of fresh) cameNew.delete(x.v.key); // seen: Delete is open
-  const known = yt.map(ytAt).filter(Boolean).map((p) => p.pct);
   const text = tabTitle({
     upload: run && progress ? pct() : null, paused: !!want,
     ready: step === 3 ? 0 : fresh.length,
-    youtube: yt.length, ytPct: known.length ? Math.min(...known) : null,
+    youtube: yt.length, ytPct: lowestPct(yt.map(ytAt)),
   });
   if (document.title !== text) document.title = text;
 }

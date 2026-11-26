@@ -91,6 +91,16 @@ export function isSlow(at, now = Date.now()) {
 export const SLOW_NOTE = 'This is taking longer than usual. A long 4K video can take a few hours on YouTube. It is still there and nothing is lost.';
 
 /**
+ * The % for the tab title: the lowest YouTube gave, only when it gave one for every video with it.
+ * One without a known % gives null, so the title says "YouTube working" as when none has a %.
+ */
+export function lowestPct(list) {
+  const all = [...(list ?? [])];
+  if (!all.length || all.some((p) => !Number.isFinite(p?.pct))) return null;
+  return Math.min(...all.map((p) => p.pct));
+}
+
+/**
  * The tab title. First what is running here (uploading), then news (ready to delete), then YouTube.
  *   upload: the % uploaded while uploading, else null; paused: uploading waits for a sign-in
  *   ready: how many reached Delete in this visit and were not looked at yet
