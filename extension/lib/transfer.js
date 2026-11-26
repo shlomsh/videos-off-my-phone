@@ -3,6 +3,13 @@ import { Sha256 } from './sha256.js';
 export const CHUNK = 8 * 1024 * 1024; // YouTube requires a multiple of 256 KiB; progress moves once per chunk
 const RETRIES = 5;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The same wait, but it ends at once, with the signal's reason, when the signal aborts.
+const pause = (ms, signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) { reject(signal.reason); return; }
+  const stop = () => { clearTimeout(t); reject(signal.reason); };
+  const t = setTimeout(() => { signal?.removeEventListener('abort', stop); resolve(); }, ms);
+  signal?.addEventListener('abort', stop, { once: true });
+});
 
 export class FatalError extends Error {}
 // Nothing else in the queue can succeed either (sign-in, quota, lost tab).
@@ -64,7 +71,7 @@ export async function* sourceChunks({ getUrl, size, chunkSize = CHUNK, signal, r
       if (offset < size) throw new Error('Download ended early');
     } catch (e) {
       if (e instanceof FatalError || signal?.aborted || ++failures > RETRIES) throw e;
-      await sleep(retryMs * failures);
+      await pause(retryMs * failures, signal);
     }
   }
 }
@@ -91,6 +98,7 @@ const isIncomplete = (res) => res.status === 308 || res.headers.get('x-http-stat
  * answers with a video id.
  * `from`: how many bytes YouTube already holds from an earlier try (see probeSession).
  * The source is still read and hashed from the start; only sending begins at `from`.
+ * The next chunk is read while the current one is sent, so at most two are held.
  */
 export async function streamToSession({ sessionUri, getAuth, size, from = 0, chunkSize = CHUNK, retryMs = 1000, signal, onProgress, fetchFn = fetch, ...source }) {
   if (chunkSize % (256 * 1024)) throw new Error('Chunk size must be a multiple of 256 KiB');
@@ -154,10 +162,34 @@ export async function streamToSession({ sessionUri, getAuth, size, from = 0, chu
     }
   };
 
-  for await (const c of sourceChunks({ ...source, size, chunkSize, retryMs, signal, fetchFn })) {
-    sha.update(c.bytes);
-    await sendChunk(c.start, c.bytes);
-    onProgress?.(c.start + c.bytes.length);
+  // The read has its own signal, so it can be stopped when sending fails. Sending keeps
+  // the caller's, so a failed read never cuts short the chunk already being sent.
+  const reading = new AbortController();
+  const stopReading = () => reading.abort(signal.reason);
+  if (signal?.aborted) stopReading(); else signal?.addEventListener('abort', stopReading, { once: true });
+  const chunks = sourceChunks({ ...source, size, chunkSize, retryMs, signal: reading.signal, fetchFn });
+  const readNext = () => {
+    const p = chunks.next();
+    p.catch(() => {}); // it may fail while a chunk is being sent; the error is taken below
+    return p;
+  };
+  let ahead = readNext();
+  try {
+    for (;;) {
+      const { done, value: c } = await ahead;
+      if (done) break;
+      signal?.throwIfAborted(); // the next chunk may already be here after a Stop
+      ahead = readNext(); // read the next chunk while this one is sent
+      sha.update(c.bytes);
+      await sendChunk(c.start, c.bytes);
+      onProgress?.(c.start + c.bytes.length);
+    }
+  } finally {
+    // Nothing goes on reading after this returns or throws.
+    signal?.removeEventListener('abort', stopReading);
+    reading.abort();
+    await ahead.catch(() => {});
+    await chunks.return().catch(() => {});
   }
   if (sha.length !== size) throw new FatalError(`Sent ${sha.length} of ${size} bytes.`);
   if (!video?.id) throw new FatalError('YouTube did not return a video id.');
