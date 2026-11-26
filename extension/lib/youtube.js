@@ -1,4 +1,5 @@
 import { FatalError, StopError } from './transfer.js';
+import { titleFor, ownTitle, descriptionFor } from './meta.js';
 
 const API = 'https://www.googleapis.com/youtube/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/youtube/v3/videos';
@@ -153,10 +154,14 @@ export function recordingDate(timestamp, tzOffset) {
   return new Date(timestamp + (plausible ? tzOffset : 0)).toISOString();
 }
 
-export function buildVideo({ fileName, timestamp, tzOffset, privacy, madeForKids }) {
-  const title = fileName.replace(/[<>]/g, '').slice(0, 100) || 'Video';
+/**
+ * What YouTube is told about a new upload. `meta` is { title, text } as chosen at Move (canvas v50);
+ * without it, the title is the date taken. The description always ends with "Original file: <name>".
+ */
+export function buildVideo({ fileName, timestamp, tzOffset, privacy, madeForKids, meta = null }) {
+  const title = ownTitle(meta?.title ?? titleFor({}, { fileName, timestamp }), fileName);
   return {
-    snippet: { title, categoryId: '22' },
+    snippet: { title, description: descriptionFor(meta?.text, fileName), categoryId: '22' },
     status: { privacyStatus: privacy, selfDeclaredMadeForKids: madeForKids },
     ...(Number.isFinite(timestamp) && { recordingDetails: { recordingDate: recordingDate(timestamp, tzOffset) } }),
   };
@@ -189,4 +194,28 @@ export async function getStatus(clientId, id) {
   const v = (await getStatuses(clientId, [id])).get(id);
   if (!v) throw new FatalError('YouTube does not list the uploaded video.');
   return v;
+}
+
+/**
+ * Every video on the signed-in channel, read to the end (for finding moved videos again, v43).
+ * channels?part=contentDetails&mine=true gives the uploads list; playlistItems?part=contentDetails
+ * gives its video ids, 50 a page; then videos?part=...,fileDetails,... as getStatuses asks.
+ * Read-only. Throws unless the whole list was read, so "not found" is never said from part of it.
+ */
+export async function listUploads(clientId, channelId) {
+  const ch = (await (await call(clientId, `${API}/channels?part=contentDetails&mine=true`)).json()).items?.[0];
+  if (!ch || ch.id !== channelId) throw new FatalError('That is a different YouTube channel.');
+  const list = ch.contentDetails?.relatedPlaylists?.uploads;
+  if (!list) throw new FatalError('YouTube did not give the list of your uploads.');
+  const ids = [];
+  let page = '';
+  for (let i = 0; ; i++) {
+    if (i >= 400) throw new FatalError('The list of your uploads is too long to read here.');
+    const q = new URLSearchParams({ part: 'contentDetails', playlistId: list, maxResults: '50', ...(page && { pageToken: page }) });
+    const j = await (await call(clientId, `${API}/playlistItems?${q}`)).json();
+    for (const it of j.items ?? []) if (it.contentDetails?.videoId) ids.push(it.contentDetails.videoId);
+    page = j.nextPageToken ?? '';
+    if (!page) break;
+  }
+  return [...(await getStatuses(clientId, [...new Set(ids)])).values()];
 }

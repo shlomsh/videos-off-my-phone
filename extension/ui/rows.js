@@ -168,3 +168,47 @@ export function placeOf(st, facts, o = {}) {
   if (st.s !== 'yt' || o.gone || !o.ready) return 'working';
   return 'youtube';
 }
+
+/**
+ * Where a video is shown: as placeOf says, except that after Stop a video still ticked and queued
+ * waits to continue in Move to YouTube. It is then never in Choose: no tick there, no Send to Delete,
+ * no player. o: { queued, ticked, running (in the queue that runs now), marked (sent to Delete) }
+ */
+/**
+ * The words on a faded tile in Choose for a video already in step 2, by its state there (canvas v52):
+ * on its way or with YouTube, it needs a look, or it stays. Empty for what Choose does not show.
+ */
+export function stepTwoWords(p, st) {
+  if (['moving', 'working'].includes(p)) return 'Going to YouTube';
+  if (['look', 'lost'].includes(p)) return 'Needs a look';
+  if (p === 'stays' && st?.s !== 'again' && !/another channel/i.test(st?.word ?? '')) return 'Stays in Google Photos'; // shared album, not fully checked
+  return '';
+}
+
+export const shownPlace = (p, o = {}) => (p === 'choose' && o.queued && o.ticked && !o.running && !o.marked ? 'moving' : p);
+
+/**
+ * What the two buttons in Choose take: the ticked videos shown as tiles that can be ticked.
+ * Send takes the same ones, never one with an upload record, so the two counts agree.
+ * `decided(x)` is true for a video already sent to Delete.
+ */
+export function gridPicks(rows, sel, decided = () => false) {
+  const move = rows.filter((x) => x.p === 'choose' && sel.has(x.v.key) && canCopy(x.st.s) && !decided(x));
+  return { move, send: move.filter((x) => !x.v.record) };
+}
+
+/**
+ * How far the videos moved together got before Stop (v53): `keys` are those videos, `of(key)` gives
+ * { size, up (on YouTube), half (still half sent) }, and `part` the bytes YouTube held of the half-sent
+ * one when it stopped ({ key, bytes }). Returns { up, total, pct }; pct is by bytes, never above 100.
+ */
+export function stopTally(keys, of, part = null) {
+  let up = 0; let all = 0; let got = 0;
+  for (const k of new Set(keys)) {
+    const x = of(k) ?? {};
+    const size = x.size > 0 ? x.size : 0;
+    all += size;
+    if (x.up) { up += 1; got += size; } else if (x.half && part?.key === k) got += Math.min(Math.max(0, part.bytes || 0), size);
+  }
+  return { up, total: new Set(keys).size, pct: all ? Math.floor(Math.min(1, got / all) * 100) : 0 };
+}

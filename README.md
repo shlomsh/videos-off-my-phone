@@ -15,9 +15,9 @@ Website and privacy policy: <https://videos-off-my-phone.vercel.app/>
 - **From this repo:** open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and choose the `extension` folder. The manifest `key` gives it the ID `bplbdmkohpldgicplabdeplehdcnfcfa`, which the built-in sign-in expects.
 
 ## How it works
-1. **Choose.** Your Google Photos videos, largest first. Tick the ones to move, or mark ones to delete without a copy.
-2. **Move.** Each video streams from Google Photos to YouTube without being saved to disk. Every byte is counted and hashed, and YouTube must report the same size.
-3. **Delete.** Right before each delete, YouTube and Google Photos are asked again. The copy must still be on your channel, finished, the same size, and no less private than you chose; the original must be in no shared album. If anything doesn't match or doesn't answer, nothing is deleted.
+1. **Choose.** Your Google Photos videos, largest first. Tick them, then move them to YouTube, or send them to Delete with no YouTube copy. Nothing is moved or deleted yet.
+2. **Move to YouTube.** Each video streams from Google Photos to YouTube without being saved to disk. Every byte is counted and hashed, and YouTube must report the same size.
+3. **Delete from Google Photos.** Only after your yes. Right before each delete, YouTube and Google Photos are asked again. The copy must still be on your channel, finished, the same size, and no less private than you chose; the original must be in no shared album. If anything doesn't match or doesn't answer, nothing is deleted.
 
 Deleted originals go to the Google Photos trash, which Google empties after 30 days. The app never empties the trash and never deletes or changes anything on YouTube.
 

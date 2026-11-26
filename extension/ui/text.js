@@ -6,6 +6,78 @@ export const clock = (d = new Date()) => d.toLocaleTimeString([], { hour: '2-dig
 export const day = (ms) => new Date(ms).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 export const month = (ms) => new Date(ms).toLocaleDateString([], { month: 'long', year: 'numeric' });
 export const count = (n, one = 'video', many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+/** The start page: what the app does, and its three steps. The user deletes; the app helps. */
+export const START_INTRO = 'It moves your biggest videos from Google Photos to your own YouTube channel, in full original quality, then helps you delete the originals. Your phone and your Google storage get the space back.';
+export const START_STEPS = ['Choose your biggest videos', 'Move them to YouTube. Every copy is checked', 'Delete them from Google Photos, after your yes'];
+
+/**
+ * The delete question's sentence about YouTube copies, by the real count: c have a YouTube copy, of n.
+ * Empty when none has one. Ends with a space when not empty, so it can lead the next sentence.
+ */
+export function copiesStay(c, n) {
+  if (!(c > 0)) return '';
+  if (c >= n) return c === 1 ? 'The YouTube copy stays. ' : 'The YouTube copies stay. ';
+  return c === 1 ? '1 has a YouTube copy, which stays. ' : `${c} have YouTube copies, which stay. `;
+}
+/** The delete question's sentence about videos with no YouTube copy (n of them). Ends with a space when not empty. */
+export function onlyCopies(n) {
+  if (!(n > 0)) return '';
+  return n === 1 ? '1 has no YouTube copy, so this is its only copy. ' : `${n} have no YouTube copy, so these are their only copies. `;
+}
+/** The player's words: in Choose (step 1), and in Delete (step 3) for a video with no YouTube copy (canvas v51, E47). */
+export const PLAYER = {
+  choose: { title: 'What should happen to this video?', bare: 'Skip YouTube, send to Delete', copy: 'Move to YouTube' },
+  del: { title: 'Delete it, or move it to YouTube first?', bare: 'Delete from Google Photos', copy: 'Move to YouTube first', facts: 'It has no YouTube copy.', note: 'It has no YouTube copy. Deleting asks you first.' },
+};
+/**
+ * Step 2 after Stop (canvas v53, board XE-stopped): `waiting` still wait to continue; `up` of `total`
+ * (the videos moved together when it stopped) are on YouTube. The heading counts only the waiting ones,
+ * and stays the same after other videos were moved since.
+ */
+export function stoppedWords({ waiting, up, total }) {
+  return {
+    head: `You stopped. ${count(waiting)} ${waiting === 1 ? 'is' : 'are'} waiting.`,
+    sub: `${up} of ${total} ${up === 1 ? 'is' : 'are'} on YouTube.`,
+    small: `${up} of ${total} sent`,
+  };
+}
+/** The stopped page's words about the half-sent one, the waiting ones, and "Put them back in Choose" (v53). */
+export const STOPPED = {
+  note: 'The half-sent one carries on where it stopped.',
+  half: 'It was half sent. It carries on where it stopped.',
+  waits: 'It waits until you continue.',
+  back: 'Put them back in Choose',
+  bar: (n) => `${n} put back in Choose.`,
+};
+/** Step 3 while the videos chosen earlier are still being read: the grey button and its reason. */
+export const READING = { button: 'Delete from Google Photos', why: 'Still reading your videos.' };
+/** The words on the done page that follow how many videos it is about: it or them, and the iPhone's question. */
+export function phoneWords(n) {
+  const many = n > 1;
+  return {
+    it: many ? 'them' : 'it',
+    ask: many ? `Allow “Google Photos” to delete ${n} videos?` : 'Allow “Google Photos” to delete this video?',
+    sub: many ? 'They will be in Recently Deleted for 30 days.' : 'It will be in Recently Deleted for 30 days.',
+    head: many ? 'Now remove them from your iPhone' : 'Now remove it from your iPhone',
+  };
+}
+/**
+ * The done page's words, all by one count: the videos deleted in this visit (v52), as the iPhone steps
+ * remove them all at once. list: [{ fileName, size }], oldest first. size is what the "+" shows.
+ */
+export function doneWords(list) {
+  const n = Math.max(1, list.length);
+  const last = list[list.length - 1] ?? {};
+  const total = list.reduce((t, x) => t + (x.size > 0 ? x.size : 0), 0);
+  return {
+    ...phoneWords(n),
+    title: n > 1 ? `${n} are in the Google Photos trash.` : 'It is in the Google Photos trash.',
+    facts: n > 1 ? `${count(n)}, ${gb(total)}.` : `${last.fileName}, ${gb(last.size)}.`, // beside the heading; `sub` is the iPhone's line
+    size: n > 1 ? total : last.size,
+  };
+}
+/** The first letter of the channel's name, as in the app's own circle; empty when not known. */
+export const initial = (title) => (typeof title === 'string' ? [...title.trim()][0]?.toUpperCase() ?? '' : '');
 
 const left = (s) => (s < 5 ? 'a few seconds' : s < 90 ? `about ${Math.round(s)} seconds` : s < 5400 ? `about ${Math.round(s / 60)} minutes` : `about ${(s / 3600).toFixed(1)} hours`);
 /** "About 4 minutes left.", or nothing while the speed is not known. */

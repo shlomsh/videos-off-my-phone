@@ -196,6 +196,20 @@ container-type:inline-size;min-height:100vh;background:var(--bg);color:var(--ink
 @container (max-width:900px){.ge .chk,.ge .cmp{align-content:start;grid-template-columns:minmax(0,1fr)}.ge .chk{grid-template-rows:auto auto}.ge .side{align-items:flex-start}.ge .cmp>*{min-width:0}}
 @container (max-width:600px){.ge table{display:block;overflow-x:auto}.ge td,.ge th{white-space:nowrap}}
 .ge .q .ok.no{background:var(--stop);color:var(--bg)}
+.ge .vid.away.look .cap{color:var(--wait);font-weight:500} /* v52: a faded tile that needs a look */
+/* v52 narrow header (600 px and less): logo, moved-out chip and avatar in one row, the three pills short in the next */
+.ge .path .ns{display:none}
+@container (max-width:600px){
+.ge .brand span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ge .bar{gap:8px 12px;min-height:0;padding:8px 12px}
+.ge .path{order:3;flex-basis:100%;justify-content:space-between}
+.ge .path li{gap:4px;flex:0 1 auto}.ge .path li+li::before{width:4px;flex:none}
+.ge .path button{flex-direction:row;gap:6px;min-height:44px;padding:4px 8px 4px 4px;border-radius:99px;text-align:left;font-size:15px}
+.ge .path .num{width:28px;height:28px;font-size:14px}
+.ge .path .nl{display:none}.ge .path .ns{display:inline;white-space:nowrap}
+.ge .won{margin-left:auto}
+.ge .path button{position:relative}.ge .path em.plus{position:absolute;top:-6px;right:-4px;margin:0;padding:3px 6px;font-size:11px} /* the "+N" as a corner badge, so the row still fits */
+}
 
 /* what the real page needs on top of the design */
 body{margin:0}
@@ -383,3 +397,49 @@ body{margin:0}
 .ge .dlg ul.fin{gap:12px}.ge .dlg .fin li{grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start;line-height:1.5}
 .ge .dlg .fin0{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start}
 @media (max-width:560px){.ge .dlg .bt{flex-wrap:wrap}}
+/* v44 YouTube is working: show progress */
+.ge .lnkb{appearance:none;border:0;background:none;padding:0;font:inherit;font-weight:500;color:var(--go);text-decoration:underline;cursor:pointer}
+.ge .lnkb[aria-disabled="true"]{color:var(--mute);text-decoration:none;cursor:default}
+.ge .vid .cap .tsub{display:block;font-size:13px;color:var(--mute);margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.ge .live{display:inline-flex;align-items:center;gap:8px;color:var(--mute);flex-basis:100%;flex-wrap:wrap}
+.ge .live i{flex:none;width:8px;height:8px;border-radius:50%;background:var(--safe);box-shadow:0 0 0 0 color-mix(in srgb,var(--safe) 50%,transparent);animation:vomPulse 2s ease-out infinite}
+@keyframes vomPulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--safe) 55%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
+.ge .pb.ind i{width:100%!important;background:repeating-linear-gradient(-45deg,#8ab4ff 0 8px,#8ab4ff59 8px 16px);background-size:22.6px 22.6px;animation:vomStripe 1s linear infinite}
+@keyframes vomStripe{to{background-position:22.6px 0}}
+.ge .slowp{flex-basis:100%;margin:4px 0 0}
+@media (prefers-reduced-motion:reduce){.ge .live i{animation:none}.ge .pb.ind i{animation:none}}
+/* v45 to v49: one vocabulary (canvas v47). The +N on the Delete pill, the moment after an answer, the bar after Send to Delete */
+.ge em.plus{font-style:normal;font-size:12px;font-weight:700;line-height:1;background:var(--go);color:var(--goink);border-radius:99px;padding:4px 7px;margin-left:8px;align-self:center;animation:vomPop .5s ease-out}
+@keyframes vomPop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+.ge .stamp{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:#101215a6;color:#fff;text-align:center;animation:vomFade .25s ease-out;z-index:5;cursor:pointer;padding:12px}
+.ge .stamp strong{font-size:24px;font-weight:500;color:#fff}.ge .stamp>span:last-child{font-size:15px;opacity:.85}
+.ge .stamp .sk{width:56px;height:56px;border-radius:50%;background:var(--go);display:grid;place-items:center;color:var(--goink);animation:vomPop .4s ease-out}
+@keyframes vomFade{from{opacity:0}to{opacity:1}}
+.ge .side1 .mini{display:inline-block;flex:none;width:48px;height:27px;border-radius:4px;overflow:hidden;vertical-align:middle}
+.ge .side1 .mini .th{width:100%;height:100%;object-fit:cover;display:block}.ge .side1 .mini .th.miss .mk{width:16px;height:16px}
+@container (min-width:901px){.ge .foot{position:relative}} /* narrow: the footer is sticky, which places the bar as well */
+.ge .foot .btn+.btn{margin-left:0}
+.ge .foot.two{gap:12px}.ge .foot.two .pg{margin-right:8px}
+.ge .snackbox{position:absolute;left:0;right:0;top:0;height:0}
+.ge .snack{position:absolute;left:24px;bottom:calc(100% + 12px);max-width:calc(100% - 48px);display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 8px 8px 16px;border-radius:12px;background:#202124;color:#fff;font-size:14px;box-shadow:0 4px 16px #0003;animation:vomFade .25s ease-out;z-index:3}
+.ge .snack .txt{color:#8ab4ff;min-height:36px;padding:6px 10px}
+.ge .snack .mk{flex:none;color:#8ab4ff}
+.ge .vid.away .pic{opacity:.45}.ge .vid.away .cap{color:var(--mute)}
+@media (prefers-reduced-motion:reduce){.ge em.plus,.ge .stamp,.ge .stamp .sk,.ge .snack{animation:none}}
+.ge .ph3 p .hint{display:block;margin-top:6px;font-size:13px;line-height:1.4;color:var(--mute)}
+.ge .side1>span:not(.mini){flex:1 1 0;min-width:0}.ge .side1 .txt{margin-block:-12px;padding-inline:8px}
+@container (max-width:900px){.ge .foot.two .btn{width:auto;flex:1 1 40%;min-width:140px;padding-inline:10px;font-size:15px}.ge .foot.two .why{flex-basis:100%;margin-left:0}.ge .step:has(+ .foot .snack){padding-bottom:120px}.ge .snack{left:16px;max-width:calc(100% - 32px)}}
+@container (max-width:900px){.ge .stamp{background:#101215e0;gap:4px}.ge .stamp strong{font-size:17px}.ge .stamp>span:last-child{font-size:13px}.ge .stamp .sk{width:36px;height:36px}.ge .stamp .sk .mk{width:20px;height:20px}}
+/* After a delete: when the phone steps do not fit (a yellow line, many "Deleted here"), this step scrolls instead of running under the footer. */
+.ge .aft{overflow-y:auto}
+/* v50 title and description at Move (E45, E46) */
+.ge .trow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border:1px solid var(--edge);border-radius:12px}
+.ge .fld{display:grid;gap:6px}.ge .fld .fl{font-weight:500}
+.ge .fld input,.ge .fld textarea,.ge .each input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--edge);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box;resize:vertical}
+.ge .chk2{display:flex;align-items:center;gap:10px;font-size:15px}.ge .chk2 input{width:20px;height:20px;margin:0;accent-color:var(--go)}
+.ge .dlg .ex{padding:10px 14px;background:var(--sel);color:var(--selink);border-radius:8px}.ge .dlg .ex .mute{color:var(--selink)}
+.ge .dlg ul.each{gap:10px;max-height:340px;overflow:auto}
+.ge .dlg .each li{grid-template-columns:72px minmax(0,1fr);gap:12px}
+.ge .pt4{width:72px;height:40px;border-radius:6px;overflow:hidden;display:block}.ge .pt4 .th{width:100%;height:100%;object-fit:cover;display:block}
+.ge .dlg .bt .lft{margin-right:auto}
+@media (max-width:560px){.ge .dlg .bt .lft{margin-right:0;flex-basis:100%}}

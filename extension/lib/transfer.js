@@ -89,9 +89,12 @@ const isIncomplete = (res) => res.status === 308 || res.headers.get('x-http-stat
  * Spike 3: stream the source into a YouTube resumable session.
  * The video counts as sent only if the byte count matches and YouTube
  * answers with a video id.
+ * `from`: how many bytes YouTube already holds from an earlier try (see probeSession).
+ * The source is still read and hashed from the start; only sending begins at `from`.
  */
-export async function streamToSession({ sessionUri, getAuth, size, chunkSize = CHUNK, retryMs = 1000, signal, onProgress, fetchFn = fetch, ...source }) {
+export async function streamToSession({ sessionUri, getAuth, size, from = 0, chunkSize = CHUNK, retryMs = 1000, signal, onProgress, fetchFn = fetch, ...source }) {
   if (chunkSize % (256 * 1024)) throw new Error('Chunk size must be a multiple of 256 KiB');
+  if (!Number.isInteger(from) || from < 0 || from > size) throw new FatalError(`YouTube reports ${from} bytes of ${size}.`);
   const sha = new Sha256();
   let video = null;
 
@@ -109,8 +112,9 @@ export async function streamToSession({ sessionUri, getAuth, size, chunkSize = C
   // before sending more, so nothing is skipped or sent twice.
   const sendChunk = async (start, bytes) => {
     const end = start + bytes.length;
-    let pos = start;
-    let query = false;
+    let pos = Math.max(start, from);
+    if (pos >= end && end < size) return; // YouTube already holds this part
+    let query = pos >= end; // it holds every byte: only ask for the result
     let failures = 0;
     for (;;) {
       let res;
@@ -160,13 +164,16 @@ export async function streamToSession({ sessionUri, getAuth, size, chunkSize = C
   return { video, bytes: sha.length, sha256: sha.hex() };
 }
 
-/** Asks YouTube what became of an interrupted upload, before sending anything again. */
+/**
+ * Asks YouTube what became of an interrupted upload, before sending anything again.
+ * 'incomplete' comes with `offset`, the bytes YouTube holds: the upload goes on from there.
+ */
 export async function probeSession({ sessionUri, size, token, fetchFn = fetch, signal }) {
   const res = await fetchFn(sessionUri, {
     method: 'PUT', signal,
     headers: { 'Content-Range': `bytes */${size}`, 'X-GUploader-No-308': 'yes', Authorization: `Bearer ${token}` },
   });
-  if (isIncomplete(res)) return { state: 'incomplete' };
+  if (isIncomplete(res)) return { state: 'incomplete', offset: nextOffset(res) };
   if (res.status === 404 || res.status === 410) return { state: 'expired' };
   if (!res.ok) throw new Error(`YouTube answered HTTP ${res.status} about the earlier upload.`);
   const id = (await res.json())?.id;

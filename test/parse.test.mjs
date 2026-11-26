@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mediaKeyFromUrl, parseDetails, checkDownloadUrl, checkStreamUrl, parseItem } from '../extension/lib/photos.js';
 import { buildVideo, recordingDate } from '../extension/lib/youtube.js';
+import { takenDay } from '../extension/lib/meta.js';
 
 test('finds the video key in Google Photos addresses', () => {
   const g = 'https://photos.google.com';
@@ -34,7 +35,9 @@ test('only accepts the known download host', () => {
 
 test('builds private metadata with the recording date', () => {
   const v = buildVideo({ fileName: 'a<b>.MOV', timestamp: 1794819973000, privacy: 'private', madeForKids: false });
-  assert.equal(v.snippet.title, 'ab.MOV');
+  // No choice made: the title is the date taken, and the description is the original file line.
+  assert.equal(v.snippet.title, takenDay(1794819973000));
+  assert.equal(v.snippet.description, 'Original file: ab.MOV');
   assert.deepEqual(v.status, { privacyStatus: 'private', selfDeclaredMadeForKids: false });
   assert.equal(v.recordingDetails.recordingDate, '2026-11-16T09:06:13.000Z');
 });
@@ -46,6 +49,15 @@ test('keeps the local day of a video filmed just after midnight', () => {
   for (const bad of [undefined, null, 7200, '7200000', 99 * 3600_000]) assert.equal(recordingDate(t, bad).slice(0, 10), '2026-11-15');
   const v = buildVideo({ fileName: 'a', timestamp: t, tzOffset: 7200_000, privacy: 'private', madeForKids: false });
   assert.equal(v.recordingDetails.recordingDate.slice(0, 10), '2026-11-16');
+});
+
+test('sends the title and description chosen at Move, cleaned, with the original file line', () => {
+  const v = buildVideo({ fileName: 'IMG_4012.MOV', timestamp: 1794819973000, privacy: 'unlisted', madeForKids: false, meta: { title: 'Cabin <weekend>, 2 Nov 2026', text: 'Filmed by Dana.' } });
+  assert.equal(v.snippet.title, 'Cabin weekend, 2 Nov 2026');
+  assert.equal(v.snippet.description, 'Filmed by Dana.\n\nOriginal file: IMG_4012.MOV');
+  assert.equal(v.status.privacyStatus, 'unlisted'); // the who-can-watch choice is untouched
+  assert.equal(buildVideo({ fileName: 'IMG_4012.MOV', privacy: 'private', madeForKids: false, meta: { title: '', text: '' } }).snippet.title, 'IMG_4012');
+  assert.equal(buildVideo({ fileName: 'IMG_4012.MOV', privacy: 'private', madeForKids: false, meta: { title: 'x'.repeat(140) } }).snippet.title.length, 100);
 });
 
 test('plays a preview only from Google\'s video servers', () => {
