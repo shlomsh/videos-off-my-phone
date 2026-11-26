@@ -68,6 +68,7 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 - Your wish (26 Nov 2026): test the next drop (0.13.x) from the store itself. That means switching from the test copy to the store copy ("finish first" in the account menu). The app shows its version in the account menu and on the start page.
 - [x] An **Unlisted** upload stays Unlisted and plays inside the app. Proven on the real account on 26 Nov 2026 with 0.11.2/0.12.0 (IMG_3916.MOV, 28 MB): every fact the same, Seen by "As you chose".
 - [ ] **Whether the Google Photos trash still counts toward storage.** Google's Help pages don't say. Until it is known, the counter must not say the space is free now. To find out, compare the storage figure before and after a large delete.
+  - Baseline (Google One storage page, 26 Nov 2026 evening): 141.82 GB of 400 GB used; Google Photos 53.9 GB, Drive 9.35 GB, Gmail 7.68 GB, family storage 70.88 GB (4 members). App counter at that time: 985 MB moved out.
 
 ## Needed before other people can use it
 Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release-plan.md).
