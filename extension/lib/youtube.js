@@ -1,4 +1,5 @@
 import { FatalError, StopError } from './transfer.js';
+import { titleFor, ownTitle, descriptionFor } from './meta.js';
 
 const API = 'https://www.googleapis.com/youtube/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/youtube/v3/videos';
@@ -153,10 +154,14 @@ export function recordingDate(timestamp, tzOffset) {
   return new Date(timestamp + (plausible ? tzOffset : 0)).toISOString();
 }
 
-export function buildVideo({ fileName, timestamp, tzOffset, privacy, madeForKids }) {
-  const title = fileName.replace(/[<>]/g, '').slice(0, 100) || 'Video';
+/**
+ * What YouTube is told about a new upload. `meta` is { title, text } as chosen at Move (canvas v50);
+ * without it, the title is the date taken. The description always ends with "Original file: <name>".
+ */
+export function buildVideo({ fileName, timestamp, tzOffset, privacy, madeForKids, meta = null }) {
+  const title = ownTitle(meta?.title ?? titleFor({}, { fileName, timestamp }), fileName);
   return {
-    snippet: { title, categoryId: '22' },
+    snippet: { title, description: descriptionFor(meta?.text, fileName), categoryId: '22' },
     status: { privacyStatus: privacy, selfDeclaredMadeForKids: madeForKids },
     ...(Number.isFinite(timestamp) && { recordingDetails: { recordingDate: recordingDate(timestamp, tzOffset) } }),
   };

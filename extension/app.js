@@ -6,6 +6,7 @@ import { runQueue, putBackPlan } from './lib/queue.js';
 import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib/trash.js';
 import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
 import { askRemove, askFinish } from './ui/account.js';
+import { askMove as askMoveDialog } from './ui/move.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
 import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED, START_INTRO, START_STEPS } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
@@ -33,6 +34,7 @@ let records = new Map();
 const sel = new Set(); // ticked to move
 const queued = new Set(); // Move was pressed in this visit, and it is not there yet
 const whoFor = new Map(); // key -> who can watch it on YouTube, as chosen at the Move press in this visit
+const metaFor = new Map(); // key -> { title, text }: its YouTube title and description text, as chosen at the Move press in this visit
 let single = null; // the video this page was opened from
 let pairing = null; // the two copies shown large, in step 2 or 3
 let watching = null; // the one video shown large, in step 1 or 3
@@ -436,8 +438,9 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
       getDetails: (key) => photos.getDetails(tabId, key),
       probe: async (r) => probeSession({ sessionUri: r.sessionUri, size: r.size, token: await getAuth(false), signal }),
       privacyOf,
+      metaOf: (key) => metaFor.get(key) ?? null,
       // Anything but one of the three is sent as Private.
-      startSession: (d, privacy) => yt.startSession(CLIENT_ID, yt.buildVideo({ ...d, privacy: VIS.includes(privacy) ? privacy : 'private', madeForKids: false }), {
+      startSession: (d, privacy, meta) => yt.startSession(CLIENT_ID, yt.buildVideo({ ...d, privacy: VIS.includes(privacy) ? privacy : 'private', madeForKids: false, meta }), {
         size: d.size, type: /\.mov$/i.test(d.fileName) ? 'video/quicktime' : 'video/*',
       }),
       stream: ({ details: d, key, sessionUri, from, onProgress }) => streamToSession({
@@ -503,23 +506,32 @@ async function askMove() {
   const keys = list.map((x) => x.v.key);
   if (!keys.length) return;
   const size = sum(list);
+  // In the order they are sent, so the example is the first one to go.
+  const order = [...list].sort(sort === 'new' ? (a, b) => (b.v.timestamp ?? 0) - (a.v.timestamp ?? 0) : bySize).map((x) => x.v);
   dialog = true;
-  let who;
+  let got;
   try {
-    who = await askChoice('Who can watch them on YouTube?', `${count(keys.length)}, ${gb(size)}.`, {
+    const saved = (await chrome.storage.local.get(TITLE_SET).catch(() => ({})))[TITLE_SET] ?? {};
+    got = await askMoveDialog({
+      sub: `${count(keys.length)}, ${gb(size)}.`,
       options: WHO.map((o) => ({ ...o, name: visName(o.value) })),
       first: 'private', // never remembered
       warn: { public: 'Anyone on the internet can find and watch them. Home videos often show people, faces and places.' },
       note: 'You choose each time you move. Once on YouTube, it cannot be changed here.',
       yes: (o) => `Move ${keys.length} as ${o.name}`,
       group: 'Who can watch them',
+      list: order, pic: thumbOf, saved,
     });
   } finally { dialog = false; }
-  if (!who || run || (busy && busy.kind !== 'list')) return;
-  for (const k of keys) whoFor.set(k, who);
+  if (!got || run || (busy && busy.kind !== 'list')) return;
+  const who = got.who;
+  // Remembered in this Chrome for the next Move: the words and the box, nothing else.
+  chrome.storage.local.set({ [TITLE_SET]: { words: got.setting.words, date: got.setting.date } }).catch(() => {});
+  for (const k of keys) { whoFor.set(k, who); metaFor.set(k, { title: got.titles.get(k), text: got.text }); }
   log(`${count(keys.length)} to move as ${visName(who)}.`);
   startMove(keys);
 }
+const TITLE_SET = 'titleSetting'; // the last words and "Add the date taken" box at Move
 const pct = () => (progress?.total ? Math.floor(Math.min(1, progress.bytes / progress.total) * 100) : 0);
 
 // ---- ask YouTube what it has. The last answers stay until the new ones are here.

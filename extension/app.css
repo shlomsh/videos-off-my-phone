@@ -432,3 +432,14 @@ body{margin:0}
 @container (max-width:900px){.ge .stamp{background:#101215e0;gap:4px}.ge .stamp strong{font-size:17px}.ge .stamp>span:last-child{font-size:13px}.ge .stamp .sk{width:36px;height:36px}.ge .stamp .sk .mk{width:20px;height:20px}}
 /* After a delete: when the phone steps do not fit (a yellow line, many "Deleted here"), this step scrolls instead of running under the footer. */
 .ge .aft{overflow-y:auto}
+/* v50 title and description at Move (E45, E46) */
+.ge .trow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border:1px solid var(--edge);border-radius:12px}
+.ge .fld{display:grid;gap:6px}.ge .fld .fl{font-weight:500}
+.ge .fld input,.ge .fld textarea,.ge .each input{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--edge);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box;resize:vertical}
+.ge .chk2{display:flex;align-items:center;gap:10px;font-size:15px}.ge .chk2 input{width:20px;height:20px;margin:0;accent-color:var(--go)}
+.ge .dlg .ex{padding:10px 14px;background:var(--sel);color:var(--selink);border-radius:8px}.ge .dlg .ex .mute{color:var(--selink)}
+.ge .dlg ul.each{gap:10px;max-height:340px;overflow:auto}
+.ge .dlg .each li{grid-template-columns:72px minmax(0,1fr);gap:12px}
+.ge .pt4{width:72px;height:40px;border-radius:6px;overflow:hidden;display:block}.ge .pt4 .th{width:100%;height:100%;object-fit:cover;display:block}
+.ge .dlg .bt .lft{margin-right:auto}
+@media (max-width:560px){.ge .dlg .bt .lft{margin-right:0;flex-basis:100%}}

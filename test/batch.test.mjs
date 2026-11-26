@@ -56,8 +56,8 @@ test('gate passes only a fully confirmed video', () => {
 });
 
 // ---- queue
-function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }, original = true, choice = 'private' } = {}) {
-  const w = { store: new Map(Object.entries(records)), sessions: [], given: [], streams: [], sent: [], auth: 0, history: [] };
+function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }, original = true, choice = 'private', metaOf } = {}) {
+  const w = { store: new Map(Object.entries(records)), sessions: [], given: [], metas: [], streams: [], sent: [], auth: 0, history: [] };
   w.d = {
     channelId: 'ch', now: () => 't',
     getRecord: async (k) => w.store.get(k) ?? null,
@@ -66,7 +66,8 @@ function queueWorld({ records = {}, failOn = {}, probe = { state: 'incomplete' }
     getDetails: async (k) => ({ key: k, fileName: `${k}.MOV`, size: 10, original }),
     probe: async () => probe,
     privacyOf: () => choice,
-    startSession: async (x, privacy) => { w.sessions.push(x.key); w.given.push(privacy); return 'uri'; },
+    ...(metaOf && { metaOf }),
+    startSession: async (x, privacy, meta) => { w.sessions.push(x.key); w.given.push(privacy); w.metas.push(meta); return 'uri'; },
     stream: async ({ key, sessionUri, from }) => {
       assert.equal(w.store.get(key).state, 'sending', 'recorded before any byte is sent');
       w.streams.push(key);
@@ -141,6 +142,22 @@ test('an interrupted upload goes on in the same session, never a new one', async
   w.d.probe = async () => { throw new Error('offline'); };
   await runQueue(['a'], w.d);
   assert.deepEqual([w.sessions, w.streams, w.store.get('a').state], [[], [], 'sending']);
+});
+
+test('queue sends the title and description chosen at Move; a try that goes on keeps its own session', async () => {
+  const chosen = { a: { title: 'Cabin weekend, 2 Nov 2026', text: 'Filmed by Dana.' } };
+  let w = queueWorld({ metaOf: (k) => chosen[k] ?? null });
+  await runQueue(['a', 'b'], w.d);
+  assert.deepEqual(w.metas, [chosen.a, null]); // b: nothing chosen, so the defaults
+  // Going on after Stop: the session YouTube holds already has its title, so no new one is started.
+  const sending = { a: { state: 'sending', sessionUri: 'u', size: 10, fileName: 'a.MOV', channel: 'ch', privacy: 'private', at: 's' } };
+  w = queueWorld({ records: sending, probe: { state: 'incomplete', offset: 4 }, metaOf: () => ({ title: 'changed since', text: '' }) });
+  await runQueue(['a'], w.d);
+  assert.deepEqual([w.sessions, w.metas, w.store.get('a').state], [[], [], 'uploaded']);
+  // Without metaOf (an older caller) nothing breaks.
+  w = queueWorld();
+  await runQueue(['a'], w.d);
+  assert.deepEqual(w.metas, [null]);
 });
 
 test('one bad video is skipped; quota or sign-in problems stop everything', async () => {

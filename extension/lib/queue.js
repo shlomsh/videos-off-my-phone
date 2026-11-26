@@ -59,7 +59,8 @@ async function uploadOne(key, d, { signal, onState }) {
   if (!details.original) throw new Error('Not Original quality in Google Photos.');
   let sessionUri;
   if (from === null) {
-    sessionUri = await d.startSession(details, privacy);
+    // Its title and description, as chosen at Move. None: the defaults. A try that goes on keeps its own.
+    sessionUri = await d.startSession(details, privacy, d.metaOf?.(key) ?? null);
     await d.setRecord(key, { state: 'sending', sessionUri, size: details.size, fileName: details.fileName, channel: d.channelId, privacy, at: d.now() });
   } else {
     // The record stays as it is, so a failure from here is asked about again next time.
