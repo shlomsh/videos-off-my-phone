@@ -4,7 +4,7 @@ import { streamToSession, probeSession, StopError } from './lib/transfer.js';
 import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive } from './lib/records.js';
 import { runQueue } from './lib/queue.js';
 import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib/trash.js';
-import { CLIENT_ID, OPEN_SOURCE } from './config.js';
+import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL } from './config.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
 import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
@@ -1005,6 +1005,7 @@ function startView() {
     button('signin', 'btn', busy?.kind === 'signin' ? 'Continue in Google’s window…' : 'Sign in to YouTube', signInFresh, { disabled: !!busy, style: 'min-height:56px;min-width:280px;font-size:18px' }),
     restoring && !busy ? h('p', { class: 'sm mute', role: 'status' }, 'Signing you in quietly…') : null,
     h('p', { class: 'sm mute' }, 'Google asks for two permissions: tick both. You choose who can watch: only you, people with the link, or everyone. Deleting moves a video to the Google Photos trash, where you can restore it for 30 days. No ads, no account with us, no server of ours.'),
+    h('p', { class: 'sm mute' }, 'By signing in you agree to the ', link('', 'YouTube Terms of Service', 'https://www.youtube.com/t/terms'), '. ', link('', 'Privacy policy', PRIVACY_URL), '.'),
     h('p', { class: 'tm' }, 'Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.'));
 }
 /** Gmail, Drive and Photos share the Google storage; the YouTube channel is outside it. Plain colours, no logos. */
