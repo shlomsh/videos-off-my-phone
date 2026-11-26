@@ -2,14 +2,14 @@ import * as photos from './lib/photos.js';
 import * as yt from './lib/youtube.js';
 import { streamToSession, probeSession, StopError } from './lib/transfer.js';
 import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive, forgetYouTubeStored, forgetAll, finishCounts } from './lib/records.js';
-import { runQueue } from './lib/queue.js';
+import { runQueue, putBackPlan } from './lib/queue.js';
 import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib/trash.js';
 import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
 import { askRemove, askFinish } from './ui/account.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
-import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial } from './ui/text.js';
+import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
-import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs } from './ui/rows.js';
+import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs, stopTally } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
 import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle, lowestPct, askEvery } from './ui/working.js';
 
@@ -41,6 +41,7 @@ let stamp = null; // the second after an answer in the player: { key, x, list, k
 let calmUntil = 0; // just after the moment, presses in the player are ignored, so a late second press never answers for the next video
 const CALM = 500;
 let sentBar = null; // the dark bar after "Send N to Delete" in the grid: { keys, size, seq }
+let putBar = null; // the dark bar after "Put them back in Choose" in step 2: { keys, was (key -> the half-sent record it dropped), seq }
 let plus = null; // the "+N" on the Delete pill, until the next press or Undo: { n, seq }
 let seq = 0;
 let cameFrom = null; // where the grid was: { page, y }
@@ -58,6 +59,7 @@ let runKeys = []; // everything in the queue that runs, or ran last
 let run = null; // key -> { text, part } while a queue runs
 let progress = null;
 let lastRun = null;
+let stopBatch = null; // the videos moved together when Stop was pressed, while some wait: { keys, part (YouTube held part.bytes of part.key) }
 const failed = new Map();
 // what YouTube said, in this visit only
 const statuses = new Map();
@@ -151,7 +153,7 @@ function go(n) {
   if (n === 1 && lastRun && !run && !(lastRun.stopped || lastRun.halted)) lastRun = null;
   if (n !== step) { closePlayer(); if (!busy) notice = null; listNote = ''; }
   if (n === 3 && step !== 3) { trashed = null; plus = null; }
-  dropStamp(); sentBar = null;
+  dropStamp(); sentBar = null; putBar = null;
   if (n !== 1) { askFailed = false; for (const [k, d] of details) if (!d) details.delete(k); } // what had no answer is asked again
   if (n !== 1 && !asking && Date.now() - askedAt > 60_000 && moved().some((x) => x.v.record.channel === channel?.id)) setTimeout(() => { if (!busy) askYouTube(); });
   watching = pairing = null;
@@ -403,6 +405,8 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
   const getAuth = authFor(signal);
   const list = (only ? everything().filter((x) => only.includes(x.v.key) && canCopy(x.st.s)) : chosen()).sort(sort === 'new' ? (a, b) => (b.v.timestamp ?? 0) - (a.v.timestamp ?? 0) : bySize).map((x) => x.v);
   if (!list.length) return;
+  putBar = null;
+  if (!waiting(everything()).length) stopBatch = null; // a new start: nothing from an earlier Stop waits
   const byKey = new Map(list.map((v) => [v.key, v]));
   const total = list.reduce((n, v) => n + v.size, 0);
   const startedAt = Date.now();
@@ -469,6 +473,11 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
       total: list.length, up: up.length, fails: list.filter((v) => failed.has(v.key)).length,
       stopped: signal.aborted, halted: !!stop && !signal.aborted, pct: pct(),
     };
+    // What waits after Stop is counted with what it was moved with ("2 of 6"), also after a Continue that stops again.
+    if ((lastRun.stopped || lastRun.halted) && list.some((v) => sel.has(v.key) && queued.has(v.key))) {
+      const half = current && records.get(current)?.state === 'sending' ? { key: current, bytes: sending } : stopBatch?.part ?? null;
+      stopBatch = { keys: [...new Set([...(stopBatch?.keys ?? []), ...list.map((v) => v.key)])], part: half };
+    }
     progress = null;
     log(`${up.length} of ${list.length} uploaded.`);
   }
@@ -487,6 +496,7 @@ const visIcon = (v) => WHO.find((o) => o.value === v)?.icon ?? 'yt';
 async function askMove() {
   if (dialog || run || (busy && busy.kind !== 'list')) return;
   sentBar = null;
+  putBar = null;
   plus = null; // the "+N" goes at the next press
   render();
   const list = picked().move; // frozen now: exactly these move
@@ -639,7 +649,7 @@ function verdict(x) {
   }
   if (place.get(v.key) === 'gone') return out('info', 'c-wait', 'It is not in your Google Photos library.', 'It may be in the trash. Do not empty the trash before this copy is checked.');
   if (p === 'lost') return out('fail', 'c-stop', 'It did not arrive.', st.s === 'cut' ? 'The upload broke off. YouTube is asked before it is sent again.' : st.meta);
-  if (p === 'moving') return out('clock', 'c-yt', 'Not yet.', st.s === 'pause' ? 'It waits for you to sign in.' : run?.has(v.key) ? 'It is on its way to YouTube.' : 'It waits for you to continue.');
+  if (p === 'moving') return out('clock', 'c-yt', 'Not yet.', st.s === 'pause' ? 'It waits for you to sign in.' : run?.has(v.key) ? 'It is on its way to YouTube.' : st.s === 'cut' ? STOPPED.half : STOPPED.waits);
   if (st.s === 'again') return out('info', 'c-wait', 'Moved before. Not found on YouTube yet.', 'It is not moved again, and it cannot be deleted here.');
   if (p === 'stays') return /shared album/.test(st.ax) ? out('held', 'c-wait', 'It stays.', st.ax) : out('info', 'c-wait', 'It stays.', /start to end/.test(st.ax) ? 'The upload broke off, so it was never checked from start to end.' : /another channel/i.test(st.word) ? 'It is on another channel. Switch channel to check it.' : st.ax);
   if (st.s === 'proc') return out('clock', 'c-yt', 'Not yet.', 'YouTube is working on it. It moves on by itself.');
@@ -1469,7 +1479,70 @@ function checkNow() {
   if (asking || Date.now() - askStarted < CHECK_GAP || (busy && busy.kind !== 'list') || dialog) return;
   askAgain();
 }
+/** Step 2, with the bar after "Put them back in Choose" above its footer (not in the view of both copies). */
 function moveView(all) {
+  const out = moveBody(all);
+  const f = pairing ? null : [out].flat(9).find((e) => e?.tagName === 'FOOTER');
+  f?.prepend(h('div', { class: 'snackbox', role: 'status', 'data-key': 'psnackbox', 'data-deep': true }, putBar ? h('div', { class: 'snack', 'data-key': `psnack-${putBar.seq}`, 'data-deep': true }, mark('check', 20),
+    h('span', null, STOPPED.bar(putBar.keys.length)), button('undoback', 'txt', 'Undo', undoBack)) : null));
+  return out;
+}
+/**
+ * "Put them back in Choose" (canvas v53): every video that waits to continue goes back to Choose, unticked.
+ * The half-sent upload is dropped only when YouTube says it holds part of it; then a later Move starts over.
+ * One YouTube holds whole is kept (as uploaded). One YouTube cannot say about is left as it is: it still waits.
+ */
+const putBack = () => work('putback', 'Putting them back in Choose', (signal) => exclusive(async () => {
+  const keys = []; const was = new Map();
+  for (const x of waiting(everything())) {
+    const key = x.v.key;
+    const r = await getRecord(key);
+    if (r) {
+      let probe = null;
+      if (r.state === 'sending' && r.channel === channel?.id) {
+        try { probe = await probeSession({ sessionUri: r.sessionUri, size: r.size, token: await yt.getToken(CLIENT_ID, false), signal }); } catch (e) {
+          signal.throwIfAborted();
+          log(`${x.v.fileName}: YouTube did not answer about the half-sent upload (${e?.message ?? e}).`);
+        }
+      }
+      const plan = putBackPlan(r, probe, channel?.id, new Date().toISOString());
+      if (plan.do === 'keep') {
+        await setRecord(key, plan.record);
+        sel.delete(key); queued.delete(key);
+        log(`${x.v.fileName}: YouTube has all of it, so it stays in Move to YouTube.`);
+        continue;
+      }
+      if (plan.do === 'leave') { log(`${x.v.fileName}: it is not known what YouTube holds, so it still waits to continue.`); continue; }
+      was.set(key, r);
+      await removeRecord(key);
+      log(`${x.v.fileName}: the half-sent upload is dropped (YouTube held ${probe.offset} of ${r.size} bytes). A later Move starts over.`);
+    }
+    sel.delete(key); queued.delete(key);
+    keys.push(key);
+  }
+  records = await allRecords();
+  if (keys.length) {
+    seq += 1;
+    putBar = { keys, was, seq };
+    log(`${count(keys.length)} put back in Choose.`);
+    say(STOPPED.bar(keys.length));
+  }
+})).then(() => focusOn(putBar ? 'undoback' : 'continue'));
+/** Undo on that bar: the same videos wait to continue again, the half-sent one with its upload as it was. */
+const undoBack = () => work('putback', 'Undo: they wait again', () => exclusive(async () => {
+  const b = putBar;
+  putBar = null;
+  if (!b) return;
+  for (const key of b.keys) {
+    if (await getRecord(key)) { log(`${videoName(key)}: changed since, so it stays in Choose.`); continue; } // never over a newer record
+    const r = b.was.get(key);
+    if (r) await setRecord(key, r);
+    sel.add(key); queued.add(key);
+  }
+  records = await allRecords();
+  say(`${count(b.keys.length)} ${b.keys.length === 1 ? 'waits' : 'wait'} to continue again.`);
+})).then(() => focusOn('continue'));
+function moveBody(all) {
   const list = moveRows(all);
   const seen = pairing && all.find((x) => x.v.key === pairing && x.p !== 'choose');
   if (seen) return pairView(seen);
@@ -1490,11 +1563,19 @@ function moveView(all) {
       : { head: `Moving ${count(progress.count)} to YouTube`, sub: `${of_}. ${timeLeft(progress)}`, n: p, small: sentLine(progress), foot: foot(note('Keep this tab and the Google Photos tab open.'), 'stop', 'Stop', () => busy?.abort(), { sec: true }) };
   } else if (wait.length) { // also after a later Move of other videos: what waits is never left without Continue
     const r = lastRun ?? {};
-    const ended = r.halted || r.stopped;
     const why = (r.halted && notice) || null;
-    const cont = why?.action === 'photos' && photosOpen === false ? foot(null, 'photos3', 'Open Google Photos', openPhotos)
-      : foot(note('The half-sent one does not count. YouTube is asked before it is sent again.'), 'continue', `Continue with ${wait.length}`, () => startMove(waiting(everything()).map((x) => x.v.key)), { off: why?.kind === 'clock' ? 'Try again tomorrow.' : busy && busy.kind !== 'list' ? 'Wait a moment.' : '' });
-    v = { head: why ? why.title : r.stopped ? `You stopped after ${r.up} of ${count(r.total)}.` : 'Uploading stopped.', sub: why?.text, n: ended ? r.pct : undefined, isHeld: true, small: `${count(wait.length)} ${wait.length === 1 ? 'is' : 'are'} still ticked`, foot: cont };
+    // Canvas v53 (XE-stopped): the heading counts only what waits; "2 of 6" is what was moved together.
+    const t = stopTally(stopBatch?.keys ?? wait.map((x) => x.v.key), (k) => {
+      const rec = records.get(k);
+      return { size: videos.get(k)?.size ?? rec?.size, up: rec?.state === 'uploaded', half: rec?.state === 'sending' };
+    }, stopBatch?.part);
+    const w = stoppedWords({ waiting: wait.length, up: t.up, total: t.total });
+    const off = busy && busy.kind !== 'list' ? 'Wait a moment.' : '';
+    // A quiet way out, with no question: Undo is on the bar after it.
+    const left = [note(wait.some((x) => x.st.s === 'cut') ? STOPPED.note : ''), button('putback', 'txt', STOPPED.back, putBack, { disabled: !!off })];
+    const cont = why?.action === 'photos' && photosOpen === false ? foot(left, 'photos3', 'Open Google Photos', openPhotos)
+      : foot(left, 'continue', `Continue with ${wait.length}`, () => startMove(waiting(everything()).map((x) => x.v.key)), { off: why?.kind === 'clock' ? 'Try again tomorrow.' : off });
+    v = { head: why ? why.title : w.head, sub: why ? why.text : w.sub, n: t.pct, isHeld: true, small: w.small, foot: cont };
   } else if (askFailed && !asking) {
     v = { head: 'Nothing is confirmed right now.', sub: 'YouTube did not answer.', foot: foot(note('Nothing moves on until it answers.'), 'askagain', 'Try again', askAgain, { off: busy && busy.kind !== 'list' ? 'Wait a moment.' : '' }) };
   } else {
@@ -1539,6 +1620,7 @@ function moveTile(x) {
 // ---- both copies of one video, whenever the user wants
 function pair(key) {
   closePlayer();
+  putBar = null;
   cameFrom = { page, y: scrollY };
   pairing = key;
   scrollTo(0, 0);
