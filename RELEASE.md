@@ -2,20 +2,20 @@
 
 ## Your priorities (26 Nov 2026)
 1. Get the official Chrome Web Store listing and Google sign-in going for public use; improve afterwards. (Its own session, working in your Chrome.)
-2. Run end-to-end tests in your own Chrome, to see it works as expected. (Here, once 0.10.0 is installed.)
+2. Run end-to-end tests in your own Chrome, to see it works as expected. (Here, now that 0.11.0 is installed.)
 3. Bug fixing and polish.
 
 Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
 
-Last updated: 26 Nov 2026. Installed version: 0.8.2.
+Last updated: 26 Nov 2026. Installed version: 0.11.0 (tested on stand-ins only; not yet used on the real account).
 
-## Being built now (approved)
-- [ ] **Who can watch on YouTube** (canvas v32 to v35). Move asks each time: Private (chosen first), Unlisted or Public, with a warning for Public. The choice is stored with each upload. Once a video is on YouTube, the app only shows its visibility and never changes it.
-- [ ] **Delete check goes by direction.** Private < Unlisted < Public.
+## Built in 0.11.0 (26 Nov 2026)
+- [x] **Who can watch on YouTube** (canvas v32 to v35). Move asks each time: Private (chosen first), Unlisted or Public, with a warning for Public. The choice is stored with each upload. Once a video is on YouTube, the app only shows its visibility and never changes it.
+- [x] **Delete check goes by direction.** Private < Unlisted < Public.
   - Same as chosen, or more private: it can be deleted (with the note "YouTube kept it Private…").
   - Less private than chosen: it stops, with "Set it back to Private in YouTube Studio, then check again."
-- [ ] **The delete question shows the visibility.** For example "On YouTube, Unlisted. Checked just now.", plus "Anyone can watch the YouTube copy." for Public.
-- [ ] **"Moved out" counter** in the header and on the done page (hidden while 0), with milestones at 1, 2, 5, 10, 20, 50, 100, 200 and 500 GB.
+- [x] **The delete question shows the visibility.** For example "On YouTube, Unlisted. Checked just now.", plus "Anyone can watch the YouTube copy." for Public.
+- [x] **"Moved out" counter** in the header and on the done page (hidden while 0), with milestones at 1, 2, 5, 10, 20, 50, 100, 200 and 500 GB.
 
 ## Approved, not built yet
 - [ ] Step 1 shows videos that are already in Move or Delete, faded with "In Move" / "In Delete". A click opens them there.
@@ -23,11 +23,11 @@ Last updated: 26 Nov 2026. Installed version: 0.8.2.
 - [ ] After Stop, the waiting videos appear only in step 2.
 - [ ] In step 3, Delete on a no-copy video goes straight to the question.
 
-## Approved, next after 0.9.0
-- [ ] Deleting several videos with one yes (canvas v36, approved 26 Nov 2026: "Yes, build v36"). Up to 6 at a time; they go one by one through the single-video checks, and it stops at the first problem.
+## Also built in 0.11.0
+- [x] Deleting several videos with one yes (canvas v36, approved 26 Nov 2026: "Yes, build v36"). Up to 6 at a time; they go one by one through the single-video checks, and it stops at the first problem.
 
 ## Decisions still open (yours)
-- [ ] Whether people other than you should be able to sign in.
+- [x] Whether people other than you should be able to sign in: yes, everyone (26 Nov 2026).
 
 ## Not proven on the real account yet
 - [ ] Deleting a **no-copy** video. Only an On YouTube one has been done (IMG_4959.MOV).
@@ -69,7 +69,7 @@ Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release
 
 ## Name and message
 - [x] Name chosen: **Videos Off My Phone**. GitHub repo renamed to `videos-off-my-phone`. Research is in [docs/naming.md](docs/naming.md); the draft listing is in [docs/listing.md](docs/listing.md).
-- [ ] Rename it inside the app (manifest, page titles, texts), after the current build.
+- [x] Renamed inside the app, with the new start page (v38) and icon (v39), in 0.11.0.
 - [ ] Say the point on the start page and in the listing: YouTube storage doesn't count toward your Google storage. Free and open source. (Design session.)
 - [ ] **Open source** (your answers, 26 Nov 2026):
   - Make the repo public after the current build. Ask once more before switching.
@@ -79,7 +79,7 @@ Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release
 
 ## Housekeeping
 - [x] Put the folder in git, with a private GitHub repo.
-- [ ] Remove "(proof of concept)" from the name (part of the rename).
+- [x] Removed "(proof of concept)" from the name.
 - [ ] Remove the old probe file and the `old/` folders (kept out of git).
 
 ## Rules that stay
