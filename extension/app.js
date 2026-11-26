@@ -485,6 +485,7 @@ async function askMove() {
   if (dialog || run || (busy && busy.kind !== 'list')) return;
   sentBar = null;
   plus = null; // the "+N" goes at the next press
+  render();
   const list = picked().move; // frozen now: exactly these move
   const keys = list.map((x) => x.v.key);
   if (!keys.length) return;
