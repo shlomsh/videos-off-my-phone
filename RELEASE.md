@@ -11,7 +11,7 @@ Store draft created (26 Nov 2026). Item ID `imkmnploomooalicacgniiicblmfclka`; i
 
 Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
 
-Last updated: 26 Nov 2026. Live folder: 0.13.0 (on local main, not pushed yet). Store: 0.11.2 review cancelled on 26 Nov 2026, so 0.13.0 can go up.
+Last updated: 26 Nov 2026. 0.13.1 pushed for the store (Unlisted, new listing text). 0.13.0 was submitted, then its review cancelled to send 0.13.1 in one review (your choice, 26 Nov 2026).
 
 ## 0.13.0 (26 Nov 2026): built, being tested on the real account
 Merged on local main. 158 unit tests and 405 stand-in end-to-end checks pass. Pushing main starts the Release workflow; the store step needs your approval (0.11.2 review already cancelled).
