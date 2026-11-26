@@ -42,6 +42,14 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 ## Decisions still open (yours)
 - [x] Whether people other than you should be able to sign in: yes, everyone (26 Nov 2026).
 
+## Full test on the real account (26 Nov 2026, 0.12.0 → 0.12.1): passed
+- Unlisted upload (IMG_3916.MOV, 28 MB): stayed Unlisted, played in the app, every fact the same; deleted with one yes.
+- Second upload (IMG_4776.MOV, 43 MB) reached Delete by itself after YouTube finished.
+- Several at once: IMG_4776.MOV (on YouTube) + IMG_4972.MOV (no copy), one yes, one by one. Counter 882 → 985 MB.
+- iPhone: Review out-of-sync changes → Delete all worked, after refreshing the Google Photos app.
+- Account menu, version line, Sign out and Sign in again: the list and the counter stayed.
+- Found while testing, sent to design (canvas v45–49, waiting for your yes): the player's Delete only marks; no sign after an answer; "Move" doesn't say where; batch delete from Choose; singular/plural slips; the "H" avatar; a refresh tip for the iPhone steps. Progress for "YouTube is working" (v44) is being built.
+
 ## Not proven on the real account yet
 - [x] Deleting a **no-copy** video, and **several at once**: proven on 26 Nov 2026 with 0.12.1 (IMG_4776.MOV Unlisted with a copy + IMG_4972.MOV no copy, one yes, one by one; counter 910 → 985 MB).
 - Versions are tagged on GitHub from 0.12.0 (`v0.12.0`, `v0.12.1`). The app shows its version in the account menu and on the start page.
