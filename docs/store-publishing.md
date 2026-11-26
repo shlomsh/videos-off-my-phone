@@ -1,6 +1,6 @@
 # Publishing to the Chrome Web Store
 
-Set up 26 Nov 2026. Workflows: [.github/workflows/release.yml](../.github/workflows/release.yml) and [ci.yml](../.github/workflows/ci.yml).
+Set up and proven 26 Nov 2026: the manual **Store access check** workflow signed in and read the item (0.11.2, PENDING_REVIEW). Workflows: [.github/workflows/release.yml](../.github/workflows/release.yml) and [ci.yml](../.github/workflows/ci.yml).
 
 ## How a release goes
 1. A new version number in `extension/manifest.json` lands on `main`.
@@ -16,7 +16,7 @@ Re-running: **Actions → Release → Run workflow** builds again only for a ver
 
 Every push and pull request also runs **Tests** (unit tests, a syntax check, and the store zip build).
 
-## One-time setup (your part)
+## One-time setup (done 26 Nov 2026; kept for reference)
 Nothing secret is stored in GitHub. GitHub proves to Google which repo and which job is asking (Workload Identity Federation), and only the approved store job of this repo can sign in.
 
 1. **Google Cloud:** open [Cloud Shell](https://shell.cloud.google.com), upload `tools/setup-store-publishing.sh` (⋮ → Upload) and run:
