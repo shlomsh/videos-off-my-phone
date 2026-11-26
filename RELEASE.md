@@ -11,7 +11,16 @@ Store draft created (26 Nov 2026). Item ID `imkmnploomooalicacgniiicblmfclka`; i
 
 Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
 
-Last updated: 26 Nov 2026. Live folder: 0.12.1 (reload in chrome://extensions to use it). In store review: 0.11.2.
+Last updated: 26 Nov 2026. Live folder: 0.13.0 (on local main, not pushed yet). Store: 0.11.2 review cancelled on 26 Nov 2026, so 0.13.0 can go up.
+
+## 0.13.0 (26 Nov 2026): built, being tested on the real account
+Merged on local main. 158 unit tests and 405 stand-in end-to-end checks pass. Pushing main starts the Release workflow; the store step needs your approval (0.11.2 review already cancelled).
+- [x] Progress while YouTube works (v44), the Stop fixes (Stop then Continue resumes the same upload), and the stopped page with "Put them back in Choose" (v51–v53).
+- [x] Wording set v45–v49: one vocabulary, player Skip/Move with Undo, batch "Send N to Delete, no copy", faded "In Move" / "In Delete" tiles in Choose.
+- [x] Title and description on YouTube (v50): the Move dialog lets you change the title; the description ends with "Original file: <name>".
+- [x] Find again (v43 with v50 matching): moved videos are looked up on the channel again before they can be deleted.
+- Real-account test, in progress: [x] version line and menu; [x] player Skip/Undo; [x] grid Send 2 to Delete; [ ] Move one Unlisted with a "Test" title; [ ] check title and description in YouTube Studio; [ ] delete the test videos; [ ] iPhone step.
+- Known gaps, not blocking: once the grid's Undo bar is gone, a no-copy video goes back to Choose only through "Move to YouTube first" (sent to design); a re-found Unlisted copy has no saved visibility, so it is held as "Not as you chose" (the safe side).
 
 ## Built in 0.11.0 (26 Nov 2026)
 - [x] **Who can watch on YouTube** (canvas v32 to v35). Move asks each time: Private (chosen first), Unlisted or Public, with a warning for Public. The choice is stored with each upload. Once a video is on YouTube, the app only shows its visibility and never changes it.
