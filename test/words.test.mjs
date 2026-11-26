@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copiesStay, onlyCopies, PLAYER, READING, phoneWords, doneWords, initial } from '../extension/ui/text.js';
+import { copiesStay, onlyCopies, PLAYER, READING, phoneWords, doneWords, initial, START_INTRO, START_STEPS } from '../extension/ui/text.js';
 
 test('the delete question speaks of YouTube copies by the real count', () => {
   assert.equal(copiesStay(1, 1), 'The YouTube copy stays. ');
@@ -71,4 +71,10 @@ test('the done page follows one count, the videos deleted in this visit, also af
   assert.equal(two.ask, 'Allow “Google Photos” to delete 2 videos?');
   assert.equal(two.size, 2_750_000_000);
   assert.equal(doneWords([]).title, 'It is in the Google Photos trash.');
+});
+
+test('the start page says the user deletes, with the three steps as drawn', () => {
+  assert.equal(START_INTRO, 'It moves your biggest videos from Google Photos to your own YouTube channel, in full original quality, then helps you delete the originals. Your phone and your Google storage get the space back.');
+  assert.doesNotMatch(START_INTRO, /then deletes the originals/);
+  assert.deepEqual(START_STEPS, ['Choose your biggest videos', 'Move them to YouTube. Every copy is checked', 'Delete them from Google Photos, after your yes']);
 });

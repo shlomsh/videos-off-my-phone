@@ -6,6 +6,9 @@ export const clock = (d = new Date()) => d.toLocaleTimeString([], { hour: '2-dig
 export const day = (ms) => new Date(ms).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 export const month = (ms) => new Date(ms).toLocaleDateString([], { month: 'long', year: 'numeric' });
 export const count = (n, one = 'video', many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+/** The start page: what the app does, and its three steps. The user deletes; the app helps. */
+export const START_INTRO = 'It moves your biggest videos from Google Photos to your own YouTube channel, in full original quality, then helps you delete the originals. Your phone and your Google storage get the space back.';
+export const START_STEPS = ['Choose your biggest videos', 'Move them to YouTube. Every copy is checked', 'Delete them from Google Photos, after your yes'];
 
 /**
  * The delete question's sentence about YouTube copies, by the real count: c have a YouTube copy, of n.

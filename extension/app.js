@@ -7,7 +7,7 @@ import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib
 import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
 import { askRemove, askFinish } from './ui/account.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
-import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED } from './ui/text.js';
+import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED, START_INTRO, START_STEPS } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs, stopTally } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
@@ -1148,8 +1148,8 @@ function startView() {
     OPEN_SOURCE ? h('span', { class: 'free' }, 'Free and open source') : null,
     h('h1', null, 'YouTube storage doesn’t count toward your Google storage.'),
     quotaPicture(),
-    h('p', { class: 'big' }, 'It moves your biggest videos from Google Photos to your own YouTube channel, in full original quality, then deletes the originals. Your phone and your Google storage get the space back.'),
-    h('ol', { class: 'three' }, ['Choose: delete, or move to YouTube', 'The app moves them and checks every copy', 'Delete here, after your yes'].map((t, i) => h('li', null, h('span', { class: 'num' }, String(i + 1)), h('span', null, t)))),
+    h('p', { class: 'big' }, START_INTRO),
+    h('ol', { class: 'three' }, START_STEPS.map((t, i) => h('li', null, h('span', { class: 'num' }, String(i + 1)), h('span', null, t)))),
     signNote ? h('p', { class: 'why', role: 'alert' }, h('span', null, `${signNote.title} ${signNote.text}`), h('button', { type: 'button', class: 'txt', popovertarget: 'menu' }, 'Details')) : null,
     button('signin', 'btn', busy?.kind === 'signin' ? 'Continue in Google’s window…' : 'Sign in to YouTube', signInFresh, { disabled: !!busy, style: 'min-height:56px;min-width:280px;font-size:18px' }),
     restoring && !busy ? h('p', { class: 'sm mute', role: 'status' }, 'Signing you in quietly…') : null,
