@@ -31,6 +31,7 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 - [ ] **Revoked on Google's own permissions page:** delete the YouTube data within 30 days. The app must notice when its sign-in can't be renewed.
 
 ## Approved, not built yet
+- [ ] **Wording set, canvas v45–v49** (approved 26 Nov 2026: "approve the whole set, build it after v44"). Step names Move to YouTube / Delete from Google Photos; player "Skip YouTube, send to Delete" / "Move to YouTube" with a note and a 1-second confirmation, Undo; batch "Send N to Delete, no copy" in Choose; labels "No YouTube copy"; count-correct copy and it/them wording; the channel letter in the phone picture; the iPhone refresh tip. Build after v44.
 - [ ] Step 1 shows videos that are already in Move or Delete, faded with "In Move" / "In Delete". A click opens them there.
 - [ ] "Do not move it" beside "Try again" for an upload that did not arrive.
 - [ ] After Stop, the waiting videos appear only in step 2.
