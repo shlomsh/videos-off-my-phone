@@ -11,7 +11,7 @@ Store draft created (26 Nov 2026). Item ID `imkmnploomooalicacgniiicblmfclka`; i
 
 Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
 
-Last updated: 26 Nov 2026. Live folder: 0.12.0 (reload in chrome://extensions to use it). In store review: 0.11.2.
+Last updated: 26 Nov 2026. Live folder: 0.12.1 (reload in chrome://extensions to use it). In store review: 0.11.2.
 
 ## Built in 0.11.0 (26 Nov 2026)
 - [x] **Who can watch on YouTube** (canvas v32 to v35). Move asks each time: Private (chosen first), Unlisted or Public, with a warning for Public. The choice is stored with each upload. Once a video is on YouTube, the app only shows its visibility and never changes it.
@@ -43,7 +43,8 @@ Source: YouTube API Developer Policies III.D.2.3 and III.E.4. This is the store 
 - [x] Whether people other than you should be able to sign in: yes, everyone (26 Nov 2026).
 
 ## Not proven on the real account yet
-- [ ] Deleting a **no-copy** video. Only an On YouTube one has been done (IMG_4959.MOV).
+- [ ] Deleting a **no-copy** video. Only an On YouTube one has been done (IMG_4959.MOV; and IMG_3916.MOV, Unlisted, on 26 Nov 2026 with 0.12.0).
+- Versions are tagged on GitHub from 0.12.0 (`v0.12.0`, `v0.12.1`). The app shows its version in the account menu and on the start page.
 - [x] An **Unlisted** upload stays Unlisted and plays inside the app. Proven on the real account on 26 Nov 2026 with 0.11.2/0.12.0 (IMG_3916.MOV, 28 MB): every fact the same, Seen by "As you chose".
 - [ ] **Whether the Google Photos trash still counts toward storage.** Google's Help pages don't say. Until it is known, the counter must not say the space is free now. To find out, compare the storage figure before and after a large delete.
 
