@@ -22,7 +22,7 @@ async function introduce() {
 /** Why a video did not play, in plain words. */
 export function whyNotPlaying(code) {
   if (code === 'slow') return 'The player did not start.';
-  if ([100, 101, 150].includes(code)) return 'YouTube does not play this Private video inside another page.';
+  if ([100, 101, 150].includes(code)) return 'YouTube does not play this video inside another page.';
   return `YouTube did not allow the player here${Number.isFinite(code) ? ` (${code})` : ''}.`;
 }
 

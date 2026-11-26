@@ -102,12 +102,14 @@ export function ask(title, text, yes, no = 'Cancel') {
 }
 
 /** Asks about one video, shown with its picture. Cancel has the focus; Esc and a click outside cancel. */
-export function askDelete(title, { pic, name, facts, copy, safe = false }, text, yes = 'Delete') {
+export const askDelete = (title, one, text, yes = 'Delete') => askDeleteMany(title, [one], text, yes);
+/** The same, for several videos: each with its picture and its own line. */
+export function askDeleteMany(title, list, text, yes = 'Delete') {
   return new Promise((resolve) => {
     const no = h('button', { type: 'button', class: 'btn sec', autofocus: true, onclick: () => d.close('no') }, 'Cancel');
     const d = h('dialog', { class: 'dlg', 'aria-labelledby': 'dlg-title' }, h('div', { class: 'in' },
       h('h2', { id: 'dlg-title' }, title),
-      h('ul', null, h('li', null, h('span', { class: 'pt2' }, pic), h('span', { class: 'stack g4' }, h('strong', null, name), h('span', null, facts), h('span', { class: `line1 ${safe ? 'c-safe' : 'c-stop'}` }, icon(safe ? 'check' : 'stop', 16), copy)))),
+      h('ul', null, list.map(({ pic, name, facts, copy, safe = false }) => h('li', null, h('span', { class: 'pt2' }, pic), h('span', { class: 'stack g4' }, h('strong', null, name), h('span', null, facts), h('span', { class: `line1 ${safe ? 'c-safe' : 'c-stop'}` }, icon(safe ? 'check' : 'stop', 16), copy))))),
       h('p', null, text),
       h('div', { class: 'bt' }, no, h('button', { type: 'button', class: 'btn bare', onclick: () => d.close('yes') }, yes))));
     d.onclick = (e) => { if (e.target === d) d.close('no'); };
@@ -116,4 +118,58 @@ export function askDelete(title, { pic, name, facts, copy, safe = false }, text,
     d.showModal();
     no.focus();
   });
+}
+
+/**
+ * Asks for one of several choices, shown as radio rows. Resolves to the chosen value, or null.
+ * Cancel has the focus; Esc and a click outside cancel. `first` is chosen when it opens.
+ * options: [{ value, name, text, icon }]; warn: { [value]: text } shown while that one is chosen;
+ * yes(option) gives the button's words for the current choice.
+ */
+export function askChoice(title, sub, { options, first, warn = {}, note = '', yes, group = title }) {
+  return new Promise((resolve) => {
+    let now = options.some((o) => o.value === first) ? first : options[0].value;
+    const no = h('button', { type: 'button', class: 'btn sec', autofocus: true, onclick: () => d.close('') }, 'Cancel');
+    const go = h('button', { type: 'button', class: 'btn', onclick: () => d.close(now) });
+    const tip = h('p', { class: 'vwarn', role: 'note' }, icon('info', 20), h('span'));
+    const rows = options.map((o) => h('label', { class: 'vopt', 'data-v': o.value },
+      h('input', { type: 'radio', name: 'dlg-choice', value: o.value, checked: o.value === now, onchange: (e) => { if (e.target.checked) show(o.value); } }),
+      icon(o.icon, 22), h('span', { class: 'stack g4' }, h('strong', null, o.name), h('span', { class: 'sm mute' }, o.text))));
+    const show = (v) => {
+      now = v;
+      for (const r of rows) r.classList.toggle('on', r.dataset.v === v);
+      tip.hidden = !warn[v];
+      tip.lastChild.textContent = warn[v] ?? '';
+      go.textContent = yes(options.find((o) => o.value === v));
+    };
+    const d = h('dialog', { class: 'dlg', 'aria-labelledby': 'dlg-title', 'aria-describedby': 'dlg-sub' }, h('div', { class: 'in' },
+      h('div', { class: 'stack g4' }, h('h2', { id: 'dlg-title' }, title), h('span', { id: 'dlg-sub', class: 'mute' }, sub)),
+      h('div', { class: 'vlist', role: 'radiogroup', 'aria-label': group }, rows),
+      tip,
+      note ? h('p', { class: 'sm mute' }, note) : null,
+      h('div', { class: 'bt' }, no, go)));
+    show(now);
+    d.onclick = (e) => { if (e.target === d) d.close(''); };
+    d.onclose = () => { const v = d.returnValue; resolve(options.some((o) => o.value === v) ? v : null); d.remove(); };
+    document.querySelector('.ge').append(d);
+    d.showModal();
+    no.focus();
+  });
+}
+
+/** A small progress ring: `part` from 0 to 1. */
+export function ring(size, r, width, part) {
+  const box = r * 2 + width * 2;
+  const c = 2 * Math.PI * r;
+  const s = document.createElementNS(SVG, 'svg');
+  for (const [k, v] of Object.entries({ class: 'ring', width: size, height: size, viewBox: `0 0 ${box} ${box}`, 'aria-hidden': 'true' })) s.setAttribute(k, v);
+  const circle = (attrs) => {
+    const e = document.createElementNS(SVG, 'circle');
+    for (const [k, v] of Object.entries({ cx: box / 2, cy: box / 2, r, fill: 'none', 'stroke-width': width, ...attrs })) e.setAttribute(k, v);
+    return e;
+  };
+  const p = Math.max(0, Math.min(1, Number(part) || 0));
+  s.append(circle({ stroke: 'var(--edge)', opacity: '.35' }),
+    circle({ stroke: 'var(--safe)', 'stroke-linecap': 'round', transform: `rotate(-90 ${box / 2} ${box / 2})`, 'stroke-dasharray': `${(p * c).toFixed(2)} ${c.toFixed(2)}`, ...(p ? {} : { opacity: '0' }) }));
+  return s;
 }

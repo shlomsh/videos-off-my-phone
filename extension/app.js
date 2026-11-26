@@ -3,12 +3,13 @@ import * as yt from './lib/youtube.js';
 import { streamToSession, probeSession, StopError } from './lib/transfer.js';
 import { getRecord, setRecord, removeRecord, allRecords, allMarks, setMark, dropKeeps, setTrash, allTrash, exclusive } from './lib/records.js';
 import { runQueue } from './lib/queue.js';
-import { trashOne, movedReasons, lookAgain, openEnds } from './lib/trash.js';
-import { CLIENT_ID } from './config.js';
-import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete } from './ui/dom.js';
+import { trashOne, trashSeveral, movedReasons, lookAgain, openEnds } from './lib/trash.js';
+import { CLIENT_ID, OPEN_SOURCE } from './config.js';
+import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
 import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, gate, canCopy, factsFor, differs } from './ui/rows.js';
+import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -29,6 +30,7 @@ const videos = new Map(); // listed in this visit: key -> facts from Google Phot
 let records = new Map();
 const sel = new Set(); // ticked to move
 const queued = new Set(); // Move was pressed in this visit, and it is not there yet
+const whoFor = new Map(); // key -> who can watch it on YouTube, as chosen at the Move press in this visit
 let single = null; // the video this page was opened from
 let pairing = null; // the two copies shown large, in step 2 or 3
 let watching = null; // the one video shown large, in step 1 or 3
@@ -58,7 +60,10 @@ let askFailed = false;
 // deleting
 let marks = new Map(); // key -> { decision: 'bare', at, taken }: to be deleted without a copy
 let notes = new Map(); // what was sent to the trash, and whether it was cleared up
-let pick = null; // the one video ticked to delete
+let pick = null; // the one video being deleted on its own
+const picks = new Set(); // ticked to delete in the list, up to PER at a time
+let many = null; // a delete of several under way: { n, index, went, stop }
+let batch = null; // how the last delete of several ended: { t, went, n, at, name, why, byYou, out }
 let trashed = null; // the last one that is in the trash: { fileName, size }
 const trashedHere = []; // keys put in the trash in this visit, for the iPhone steps
 const putInTrash = (t) => { trashed = t; if (!trashedHere.includes(t.key)) trashedHere.push(t.key); };
@@ -328,7 +333,7 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
   const show = (key, part) => {
     const now = (part ?? 0) * byKey.get(key).size;
     progress = { key, index, count: list.length, bytes: before + now, total, sent: sent + sending, seconds: (Date.now() - startedAt) / 1000 };
-    document.title = `${pct()}% · Video Offload`;
+    document.title = `${pct()}% · Videos Off My Phone`;
     render();
   };
   let stop = null;
@@ -341,7 +346,9 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
       getAuth,
       getDetails: (key) => photos.getDetails(tabId, key),
       probe: async (r) => probeSession({ sessionUri: r.sessionUri, size: r.size, token: await getAuth(false), signal }),
-      startSession: (d) => yt.startSession(CLIENT_ID, yt.buildVideo({ ...d, privacy: 'private', madeForKids: false }), {
+      privacyOf,
+      // Anything but one of the three is sent as Private.
+      startSession: (d, privacy) => yt.startSession(CLIENT_ID, yt.buildVideo({ ...d, privacy: VIS.includes(privacy) ? privacy : 'private', madeForKids: false }), {
         size: d.size, type: /\.mov$/i.test(d.fileName) ? 'video/quicktime' : 'video/*',
       }),
       stream: ({ details: d, key, sessionUri, onProgress }) => streamToSession({
@@ -367,7 +374,7 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
     stop = e;
     throw e;
   } finally {
-    document.title = 'Video Offload';
+    document.title = 'Videos Off My Phone';
     run = null;
     records = await allRecords();
     const up = list.filter((v) => records.get(v.key)?.state === 'uploaded');
@@ -383,6 +390,38 @@ const startMove = (only = null) => work('copy', 'Uploading to YouTube', (signal)
   say(`${lastRun.up} of ${lastRun.total} uploaded.`);
   setTimeout(() => askYouTube());
 }).finally(() => { run = null; }));
+/** Who can watch it on YouTube: what was chosen at the Move press in this visit, else what its record says, else Private. */
+const privacyOf = (key) => whoFor.get(key) ?? chosenVis(records.get(key));
+const WHO = [
+  { value: 'private', icon: 'lock', text: 'Only you. It plays only on YouTube itself.' },
+  { value: 'unlisted', icon: 'open', text: 'Anyone with the link. Not in search.' },
+  { value: 'public', icon: 'search', text: 'Anyone. It shows in YouTube search and on your channel.' },
+];
+const visIcon = (v) => WHO.find((o) => o.value === v)?.icon ?? 'yt';
+/** The Move button in step 1: asks who can watch them, every time, then moves exactly the ones ticked when it was pressed. */
+async function askMove() {
+  if (dialog || run || (busy && busy.kind !== 'list')) return;
+  const picked = chosen(); // frozen now: exactly these move
+  const keys = picked.map((x) => x.v.key);
+  if (!keys.length) return;
+  const size = sum(picked);
+  dialog = true;
+  let who;
+  try {
+    who = await askChoice('Who can watch them on YouTube?', `${count(keys.length)}, ${gb(size)}.`, {
+      options: WHO.map((o) => ({ ...o, name: visName(o.value) })),
+      first: 'private', // never remembered
+      warn: { public: 'Anyone on the internet can find and watch them. Home videos often show people, faces and places.' },
+      note: 'You choose each time you move. Once on YouTube, it cannot be changed here.',
+      yes: (o) => `Move ${keys.length} as ${o.name}`,
+      group: 'Who can watch them',
+    });
+  } finally { dialog = false; }
+  if (!who || run || (busy && busy.kind !== 'list')) return;
+  for (const k of keys) whoFor.set(k, who);
+  log(`${count(keys.length)} to move as ${visName(who)}.`);
+  startMove(keys);
+}
 const pct = () => (progress?.total ? Math.floor(Math.min(1, progress.bytes / progress.total) * 100) : 0);
 
 // ---- ask YouTube what it has. The last answers stay until the new ones are here.
@@ -483,15 +522,21 @@ async function loadFacts() {
   } finally { loading = false; }
 }
 
-const WORDS = { same: ['check', 'Same', 'c-ok'], fine: ['check', 'Fine', 'c-ok'], wait: ['clock', 'Not yet', 'c-q'], none: ['info', 'Not checked', 'c-q'], diff: ['fail', 'Different', 'c-stop'], shared: ['held', 'Shared', 'c-q'], nothere: ['fail', 'Not there', 'c-q'], unknown: ['info', 'Not known', 'c-q'] };
+const WORDS = { same: ['check', 'Same', 'c-ok'], fine: ['check', 'Fine', 'c-ok'], wait: ['clock', 'Not yet', 'c-q'], none: ['info', 'Not checked', 'c-q'], diff: ['fail', 'Different', 'c-stop'], shared: ['held', 'Shared', 'c-q'], nothere: ['fail', 'Not there', 'c-q'], unknown: ['info', 'Not known', 'c-q'], more: ['check', 'More private', 'c-ok'], asyou: ['check', 'As you chose', 'c-ok'] };
+const word = (m) => WORDS[m] ?? WORDS.unknown; // a value this page does not know is never shown as fine
+/** Who can watch the YouTube copy, as chosen and as YouTube last said: null while YouTube has not answered about it. */
+const visOf = (v) => { const video = v.record?.id ? statuses.get(v.record.id) : null; return video ? visibility(v.record, video) : null; };
 const factsOf = ({ v, st }) => factsFor(v, st, details.get(v.key) ?? null, statuses.get(v.record?.id));
 const names = (list) => list.map((f, i) => (i ? f.name.toLowerCase() : f.name)).join(list.length === 2 ? ' and ' : ', ');
 /** One short sentence about a video, for the pair. */
 function verdict(x) {
   const { st, v, p } = x;
   const out = (kind, tone, title, why) => ({ kind, tone, title, why });
+  const vis = visOf(v);
+  // Made less private outside this app: never deleted, whatever else is true.
+  if (vis?.way === 'less') return out('stop', 'c-stop', `It is ${visName(vis.actual)} on YouTube.`, `You chose ${visName(vis.chosen)}. It was changed outside this app, so it is not deleted.`);
   if (p === 'youtube') {
-    const open = factsOf(x).filter((f) => !['same', 'fine'].includes(f.m));
+    const open = factsOf(x).filter((f) => !['same', 'fine', 'more', 'asyou'].includes(f.m));
     return open.length ? out('check', 'c-safe', 'Every check passed.', `${names(open)} ${open.length === 1 ? 'is' : 'are'} not checked.`)
       : out('check', 'c-safe', 'All the same.', [gb(v.size), Number.isFinite(v.timestamp) ? day(v.timestamp) : ''].filter(Boolean).join(', '));
   }
@@ -531,7 +576,7 @@ async function remember(key, mark) {
 function decide(key, kind) {
   sel.delete(key);
   if (kind === 'copy') sel.add(key);
-  if (kind === 'bare') delSeen = 0; else if (pick === key) pick = null;
+  if (kind === 'bare') delSeen = 0; else { if (pick === key) pick = null; picks.delete(key); }
   const mark = kind === 'bare' ? { decision: 'bare', at: new Date().toISOString(), taken: videos.get(key)?.timestamp } : null;
   if (mark || marks.has(key)) remember(key, mark);
 }
@@ -545,6 +590,17 @@ const photosCalls = (tabId) => ({
   libraryId: (k, at) => photos.libraryId(tabId, k, at),
   itemId: (k) => photos.itemId(tabId, k),
   trashList: () => photos.trashList(tabId),
+});
+/** What trashOne is given. heard(id, video) gets what the final YouTube check read. */
+const trashCalls = (tabId, heard) => ({
+  ...photosCalls(tabId),
+  marked: async (k) => (await allMarks()).has(k),
+  getRecord,
+  getVideo: async (id) => { await yt.getToken(CLIENT_ID, false); const video = await askOne(id); heard(id, video); return video; },
+  channelId: () => channel?.id ?? null,
+  entries: allTrash,
+  moveToTrash: (id) => photos.moveToTrash(tabId, id),
+  setTrash, now: () => new Date().toISOString(), sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
 });
 /** Moves the one ticked video to the Google Photos trash, after the user confirmed it by name. */
 let dialog = false;
@@ -608,9 +664,17 @@ async function trashNow() {
     if (!fine) { pick = null; pairing = null; return render(); }
     if (pick !== key) return;
   }
+  // Who can watch it, from the check just made.
+  const seen = kind === 'moved' ? visibility(record, statuses.get(record.id)) : null;
+  if (seen && !['same', 'more'].includes(seen.way)) {
+    pick = null;
+    notice = plainError('Nothing was deleted. Who can watch it on YouTube is not what you chose.');
+    return render();
+  }
+  const shownAs = visName(seen?.actual) ?? visName(seen?.chosen);
   const facts = [gb(v.size), Number.isFinite(v.timestamp) ? day(v.timestamp) : '', v.duration > 0 ? length(v.duration) : ''].filter(Boolean).join(', ');
-  const ok = await askDelete('Delete it from Google Photos?', { pic: thumbOf(key), name: v.fileName, facts, copy: kind === 'moved' ? 'On YouTube, Private. Checked just now.' : 'It has no copy.', safe: kind === 'moved' },
-    `${kind === 'moved' ? 'The YouTube copy stays. ' : ''}It goes to the Google Photos trash, where you can restore it for 30 days. ${kind === 'moved' ? 'YouTube does not give back the original file.' : 'Then it is gone.'} It can leave your iPhone too, when Google Photos syncs there.`, 'Delete from Google Photos');
+  const ok = await askDelete('Delete it from Google Photos?', { pic: thumbOf(key), name: v.fileName, facts, copy: kind === 'moved' ? `On YouTube, ${shownAs}. Checked just now.` : 'It has no copy.', safe: kind === 'moved' },
+    `${kind === 'moved' ? 'The YouTube copy stays. ' : ''}It goes to the Google Photos trash, where you can restore it for 30 days. ${kind === 'moved' ? 'YouTube does not give back the original file.' : 'Then it is gone.'} ${seen?.actual === 'public' ? 'Anyone can watch the YouTube copy. ' : ''}It can leave your iPhone too, when Google Photos syncs there.`, 'Delete from Google Photos');
   if (!ok || pick !== key || (busy && busy.kind !== 'list')) return;
   await work('trash', 'Moving one video to the trash', () => exclusive(async () => {
     const tabId = await photosTab();
@@ -621,16 +685,7 @@ async function trashNow() {
     let r;
     let last; // what the final check read
     try {
-      r = await trashOne(what, {
-        ...photosCalls(tabId),
-        marked: async (k) => (await allMarks()).has(k),
-        getRecord,
-        getVideo: async (id) => { await yt.getToken(CLIENT_ID, false); last = { video: await askOne(id) }; return last.video; },
-        channelId: () => channel?.id ?? null,
-        entries: allTrash,
-        moveToTrash: (id) => photos.moveToTrash(tabId, id),
-        setTrash, now: () => new Date().toISOString(), sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
-      });
+      r = await trashOne(what, trashCalls(tabId, (id, video) => { last = { video }; }));
     } finally {
       notes = await allTrash(); opened = false;
       pick = null;
@@ -643,6 +698,150 @@ async function trashNow() {
     log(`${what.fileName}: ${r.state === 'trashed' ? 'in the Google Photos trash, read back' : 'NOT confirmed'}.${r.extra ? ` ${r.extra} other items appeared in the trash.` : ''}${r.problem ? ` Google said: ${r.problem}` : ''}`);
     say(r.state === 'trashed' && !r.extra ? 'It is in the Google Photos trash.' : 'Look in the trash first.');
   }));
+}
+// ---- 3. delete several at once: one yes, then strictly one by one through trashOne
+const ticked = (rows = delRows()) => rows.filter((x) => picks.has(x.v.key));
+/** The delete button in the list: one ticked takes the path for one video, as before. */
+async function deletePicked() {
+  const list = ticked().slice(0, PER);
+  if (list.length === 1) {
+    const k = pick = list[0].v.key;
+    await trashIt();
+    if (pick !== k) picks.delete(k);
+    return render();
+  }
+  if (list.length > 1) trashMany(list.map((x) => x.v.key));
+}
+async function trashMany(keys) {
+  if (dialog) return;
+  dialog = true;
+  try { await manyNow(keys); } finally { dialog = false; many = null; render(); }
+}
+/** Why an error stopped one video, in plain words, with no full stop. */
+function reasonOf(e) {
+  const m = String(e?.message ?? e ?? '');
+  const p = plainError(m);
+  return (/^Nothing was deleted\. /.test(m) ? m.slice(21) : p.title === 'This did not work.' ? m : p.title).replace(/\.$/, '');
+}
+/** "Nothing was deleted. Name: why." about one of several. */
+const named = (e, name) => new StopError(`Nothing was deleted. ${name}: ${reasonOf(e)}.`);
+/** Why it stopped at one, in a few plain words, with no full stop. */
+function whyStopped(r) {
+  if (r.why === 'unclear') return 'Google Photos did not confirm it at once';
+  if (r.why === 'extra') return 'Other items went to the trash with it';
+  return reasonOf(r.outcome?.error);
+}
+/** The yellow line under a delete of several that did not finish. */
+function batchLine(b) {
+  if (!b.byYou && !b.why) return '';
+  const left = b.n - b.went.length - b.out;
+  const rest = left ? ` ${left} ${left === 1 ? 'was' : 'were'} not deleted and ${left === 1 ? 'stays' : 'stay'} in the list.` : '';
+  return b.byYou ? `You stopped.${rest}` : `Stopped at ${b.name}: ${b.why}.${rest}`;
+}
+async function manyNow(keys) {
+  if (lock() || (busy && busy.kind !== 'list')) return;
+  const rows = delRows();
+  const list = keys.map((k) => rows.find((y) => y.v.key === k)).filter(Boolean);
+  if (list.length < 2 || list.length !== keys.length || list.length > PER) return;
+  const nope = (key, text) => { picks.delete(key); notice = plainError(`Nothing was deleted. ${text}`); render(); };
+  // Each one is checked fresh, the same way as one video; if any fails, nothing opens.
+  const items = [];
+  const marked = await allMarks();
+  for (const x of list) {
+    const { v } = x;
+    const record = await getRecord(v.key);
+    const kind = record ? 'moved' : 'bare';
+    if (kind === 'moved' ? record.state !== 'uploaded' || x.p !== 'youtube' : x.p !== 'choose' || !marked.has(v.key)) {
+      records = await allRecords(); marks = await allMarks();
+      return nope(v.key, `${v.fileName}: It has changed since it was listed.`);
+    }
+    items.push({ v, record, what: { key: v.key, fileName: v.fileName, size: v.size, duration: v.duration, kind } });
+  }
+  const moved = items.filter((i) => i.what.kind === 'moved');
+  if (moved.length) {
+    let fine = false;
+    let at = null;
+    many = { n: items.length, index: 0, went: 0, stop: false };
+    await work('check', 'Checking the copies once more', async (signal) => {
+      closePlayer();
+      for (const i of moved) {
+        at = i.v.key;
+        try { await checkCopy(i.v.key, i.v.duration, signal); } catch (e) { throw signal.aborted ? e : named(e, i.v.fileName); }
+      }
+      fine = true;
+    });
+    many = null;
+    if (!fine) { if (at) picks.delete(at); pairing = null; return render(); }
+  }
+  for (const i of moved) {
+    // Who can watch it, from the check just made.
+    const seen = visibility(i.record, statuses.get(i.record.id));
+    if (!['same', 'more'].includes(seen.way)) return nope(i.v.key, `${i.v.fileName}: Who can watch it on YouTube is not what you chose.`);
+    i.shownAs = visName(seen.actual) ?? visName(seen.chosen);
+  }
+  if (!keys.every((k) => picks.has(k))) return;
+  const n = items.length;
+  const nBare = n - moved.length;
+  const rowsShown = items.map(({ v, what, shownAs }) => ({
+    pic: thumbOf(v.key), name: v.fileName, safe: what.kind === 'moved',
+    facts: [gb(v.size), Number.isFinite(v.timestamp) ? day(v.timestamp) : '', v.duration > 0 ? length(v.duration) : ''].filter(Boolean).join(', '),
+    copy: what.kind === 'moved' ? `On YouTube, ${shownAs}. Checked just now.` : 'It has no copy.',
+  }));
+  const ok = await askDeleteMany(`Delete these ${n} from Google Photos?`, rowsShown,
+    `${moved.length ? 'The YouTube copies stay. ' : ''}They go to the Google Photos trash, where you can restore them for 30 days. ${nBare ? `${nBare} ${nBare === 1 ? 'has' : 'have'} no copy anywhere else. ` : ''}They are deleted one by one, and it stops at the first problem. They can leave your iPhone too, when Google Photos syncs there.`,
+    `Delete ${n} from Google Photos`);
+  if (!ok || !keys.every((k) => picks.has(k)) || (busy && busy.kind !== 'list')) return;
+  many = { n, index: 0, went: 0, stop: false };
+  await work('trash', `Moving ${n} videos to the trash`, () => exclusive(async () => {
+    const tabId = await photosTab();
+    closePlayer();
+    listNote = '';
+    pairing = null;
+    render();
+    const last = new Map(); // record id -> what the final check of that video read
+    const byKey = new Map(items.map((i) => [i.v.key, i]));
+    const r = await trashSeveral(items.map((i) => i.what), trashCalls(tabId, (id, video) => { last.set(id, video); }), {
+      stopAsked: () => many.stop,
+      onStart: (what, index) => { many.index = index; render(); },
+      // Each result is recorded as for one video.
+      onEach: async (what, out) => {
+        const { key, kind } = what;
+        const { record } = byKey.get(key);
+        notes = await allTrash(); opened = false;
+        picks.delete(key);
+        if (kind === 'moved') learn(key, details.get(key), last.has(record.id) ? last.get(record.id) : statuses.get(record.id));
+        if (out.state === 'trashed') {
+          if (kind === 'moved') await remembered(key); else { await remember(key, null); videos.delete(key); }
+          putInTrash(what);
+          many.went += 1;
+        }
+        if (out.state === 'refused') log(`${what.fileName}: ${out.error?.message ?? out.error}`);
+        else log(`${what.fileName}: ${out.state === 'trashed' ? 'in the Google Photos trash, read back' : 'NOT confirmed'}.${out.extra ? ` ${out.extra} other items appeared in the trash.` : ''}${out.problem ? ` Google said: ${out.problem}` : ''}`);
+        render();
+      },
+    }).finally(() => picks.clear());
+    const stopAt = r.at === null ? null : items[r.at].v;
+    if (!r.went.length && r.why === 'refused') throw named(r.outcome.error, stopAt.fileName);
+    batch = { t: r.went.length ? trashed : null, went: [...r.went], n, at: stopAt?.key ?? null, name: stopAt?.fileName ?? '', why: r.why && r.why !== 'asked' ? whyStopped(r) : '', byYou: r.why === 'asked', out: 0 };
+    log(`${r.went.length} of ${n} in the Google Photos trash.`);
+    say(lock() ? 'Look in the trash first.' : [`${r.went.length} ${r.went.length === 1 ? 'is' : 'are'} in the Google Photos trash.`, batchLine(batch)].filter(Boolean).join(' '));
+  }));
+}
+/**
+ * What this app moved to the Google Photos trash and read back, less what Google Photos lists again (restored).
+ * It is not known whether the trash still counts toward storage, so nothing here says the space is free now.
+ */
+const MILES = [1, 2, 5, 10, 20, 50, 100, 200, 500]; // GB
+function movedOut() {
+  const out = [...notes].filter(([k, e]) => ['trashed', 'gone'].includes(e?.state) && !videos.has(k));
+  const total = out.reduce((t, [, e]) => t + (e.size > 0 ? e.size : 0), 0);
+  const next = MILES.find((m) => m * 1e9 > total) ?? null;
+  const prev = (MILES.filter((m) => m * 1e9 <= total).pop() ?? 0) * 1e9;
+  return {
+    total, n: out.length, next,
+    part: next ? (total - prev) / (next * 1e9 - prev) : 1,
+    words: `${gb(total)} moved out of Google Photos by this app, ${count(out.length)}. Google Photos empties its trash after 30 days.`,
+  };
 }
 /** The user has looked in the trash and came back: the list is read again. Changes nothing in Google Photos. */
 function cameBack() {
@@ -658,6 +857,12 @@ function cameBack() {
     notes = await allTrash();
     if (at !== 'kept') { if (records.has(key)) await remembered(key); else { await remember(key, null); videos.delete(key); } }
     if (at === 'trashed') putInTrash({ key, fileName: l.fileName, size: l.size });
+    if (batch?.at === key) { // the one a delete of several stopped at
+      if (at === 'trashed' && !batch.went.some((w) => w.key === key)) batch.went.push({ key, fileName: l.fileName, size: l.size });
+      if (at === 'gone') batch.out = 1;
+      if (batch.went.length) batch.t = trashed;
+      batch.at = null; // handled once
+    }
     listNote = { kept: `${l.fileName} is still in Google Photos. Nothing was deleted.`, gone: `${l.fileName} is not in your library and not in the trash any more.` }[at] ?? '';
     say(listNote || 'It is in the Google Photos trash.');
   }));
@@ -718,13 +923,14 @@ async function play(v) {
 function youtubeSide(v, video, len) {
   const id = v.record?.id;
   const mine = player?.key === v.key ? player : null;
-  const priv = video?.status?.privacyStatus;
+  const vis = video ? visibility(v.record, video) : null;
+  const now = vis?.actual ?? null; // what YouTube says now; read only here
   const key = { class: 'scr', 'data-key': `yt-${v.key}`, 'data-deep': true };
   if (mine?.frame) return h('div', key, mine.frame.isConnected ? mine.frame.cloneNode(false) : mine.frame);
   return h('div', key, picture(ytThumb(video)),
-    h('span', { class: 'tag' }, mark('lock', 14), `YouTube${priv === 'private' ? ', Private' : priv ? `, ${priv}` : ''}`),
+    h('span', { class: `tag${vis?.way === 'less' ? ' bad' : ''}` }, mark(visIcon(now), 14), `YouTube${visName(now) ? `, ${visName(now)}` : ''}`),
     !id ? null : !ytReady(video) ? h('div', { class: 'ctl why2' }, h('span', null, !video ? 'YouTube has not answered about it.' : /^(failed|rejected|deleted)$/.test(video.status?.uploadStatus) ? 'YouTube cannot play this one.' : 'YouTube is still working on it.'))
-      : priv === 'private' && !mine ? h('div', { class: 'ctl why2' }, h('span', null, 'YouTube plays Private videos only on YouTube itself.'), h('button', { type: 'button', class: 'txt', 'data-f': 'playwin', onclick: () => playInWindow(id) }, 'Open on YouTube'))
+      : now === 'private' && !mine ? h('div', { class: 'ctl why2' }, h('span', null, 'YouTube plays Private videos only on YouTube itself.'), h('button', { type: 'button', class: 'txt', 'data-f': 'playwin', onclick: () => playInWindow(id) }, 'Open on YouTube'))
       : mine?.why ? h('div', { class: 'ctl why2' }, h('span', null, mine.why), h('button', { type: 'button', class: 'txt', 'data-f': 'playwin', onclick: () => playInWindow(id) }, 'Open on YouTube'))
       : [h('button', { type: 'button', class: 'open', 'data-f': 'play', 'aria-label': 'Play the YouTube copy', disabled: !!mine, onclick: () => play(v) }, h('span', null, mark('play', 28))), len ? h('span', { class: 'len' }, len) : null]);
 }
@@ -777,19 +983,37 @@ function paintBar(all) {
     $('av').title = `${channel.title}, signed in`;
     $('av').setAttribute('aria-label', `${channel.title}, signed in`);
   }
-  draw($('account'), channel ? [h('h2', null, channel.title), h('p', { class: 'sm mute' }, 'Your YouTube channel. Only you can see the moved ones.'),
+  const out = movedOut();
+  const won = $('won');
+  won.hidden = !channel || !(out.total > 0);
+  won.title = out.words;
+  won.setAttribute('aria-label', out.words);
+  draw(won, won.hidden ? [] : [ring(24, 9, 3, out.part), h('span', null, h('b', null, gb(out.total)), h('small', null, 'moved out'))]);
+  draw($('account'), channel ? [h('h2', null, channel.title), h('p', { class: 'sm mute' }, 'Your YouTube channel. You choose who can watch each video when you move it.'),
     signNote ? h('p', { class: 'why' }, signNote.title) : null,
     h('span', null, button('switch', 'btn sec sml', 'Switch channel', signInFresh, { disabled: !!busy && busy.kind !== 'list', title: busy && busy.kind !== 'list' ? 'You can switch when the work is done' : null }))] : []);
 }
 
 function startView() {
-  return h('main', { class: 'one', id: 'main', tabindex: '-1', 'data-key': 'm-start', 'data-deep': true, style: 'padding:24px' },
-    h('h1', null, 'Clean up the videos that fill your phone.'),
-    h('ol', { class: 'three' }, ['Choose: delete, or move to YouTube', 'The app moves them and checks every copy', 'Delete here, one yes for each'].map((t, i) => h('li', null, h('span', { class: 'num' }, String(i + 1)), h('span', null, t)))),
+  return h('main', { class: 'one hello', id: 'main', tabindex: '-1', 'data-key': 'm-start', 'data-deep': true },
+    OPEN_SOURCE ? h('span', { class: 'free' }, 'Free and open source') : null,
+    h('h1', null, 'YouTube storage doesn’t count toward your Google storage.'),
+    quotaPicture(),
+    h('p', { class: 'big' }, 'It moves your biggest videos from Google Photos to your own YouTube channel, in full original quality, then deletes the originals. Your phone and your Google storage get the space back.'),
+    h('ol', { class: 'three' }, ['Choose: delete, or move to YouTube', 'The app moves them and checks every copy', 'Delete here, after your yes'].map((t, i) => h('li', null, h('span', { class: 'num' }, String(i + 1)), h('span', null, t)))),
     signNote ? h('p', { class: 'why', role: 'alert' }, h('span', null, `${signNote.title} ${signNote.text}`), h('button', { type: 'button', class: 'txt', popovertarget: 'menu' }, 'Details')) : null,
     button('signin', 'btn', busy?.kind === 'signin' ? 'Continue in Google’s window…' : 'Sign in to YouTube', signInFresh, { disabled: !!busy, style: 'min-height:56px;min-width:280px;font-size:18px' }),
     restoring && !busy ? h('p', { class: 'sm mute', role: 'status' }, 'Signing you in quietly…') : null,
-    h('p', { class: 'sm mute' }, 'Google asks for two permissions: tick both. Only you can see the moved ones: every copy is Private, in full quality, and marked “not made for kids”. Deleting moves a video to the Google Photos trash, only after your yes. You can restore it for 30 days. It is not made by Google or YouTube.'));
+    h('p', { class: 'sm mute' }, 'Google asks for two permissions: tick both. You choose who can watch: only you, people with the link, or everyone. Deleting moves a video to the Google Photos trash, where you can restore it for 30 days. No ads, no account with us, no server of ours.'),
+    h('p', { class: 'tm' }, 'Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.'));
+}
+/** Gmail, Drive and Photos share the Google storage; the YouTube channel is outside it. Plain colours, no logos. */
+function quotaPicture() {
+  return h('div', { class: 'quota', role: 'img', 'aria-label': 'Your Google storage is shared by Gmail, Google Drive and Google Photos. YouTube is not part of it.' },
+    h('div', { class: 'qbox' }, h('span', { class: 'sm mute' }, 'Your Google storage, 15 GB free'),
+      h('div', { class: 'qbar', 'aria-hidden': 'true' }, h('i', { class: 'qg' }, 'Gmail'), h('i', { class: 'qd' }, 'Drive'), h('i', { class: 'qp' }, 'Photos'))),
+    h('span', { class: 'qarr', 'aria-hidden': 'true' }, '→'),
+    h('div', { class: 'qbox qyt' }, h('span', { class: 'sm mute' }, 'Your YouTube channel'), h('strong', null, 'Not part of it')));
 }
 
 function pausedCheck() {
@@ -827,7 +1051,7 @@ function chooseView(all) {
       h('ul', { class: 'grid', 'data-key': 'grid', 'data-deep': true }, shown.map(tile), reading && shown.length < per ? Array.from({ length: Math.min(per - shown.length, 6) }, () => h('li', { 'aria-hidden': 'true' }, h('div', { class: 'skel' }))) : null)),
     foot([h('span', { class: 'pg' }, turn('prev', 'Previous page', 'left', page === 0, () => { page = Math.max(0, page - 1); render(); }), h('span', null, where),
       turn('next', last ? 'Read more videos' : 'Next page', 'right', last && (!more || reading || !!run), () => { if (page + 1 < Math.ceil(pile().length / perPage())) { page += 1; render(); } else goTo(page + 1, 1); })), note(hints)],
-    ...(photosOpen === false ? ['photos2', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' }] : ['copy', ticked.length ? `Move ${ticked.length} to YouTube, ${gb(sum(ticked))}` : 'Move to YouTube', () => startMove(), { off: run ? 'Wait until uploading has finished.' : ticked.length ? (busy && !reading ? 'Wait a moment.' : '') : 'Tick at least one video first.' }])),
+    ...(photosOpen === false ? ['photos2', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' }] : ['copy', ticked.length ? `Move ${ticked.length} to YouTube, ${gb(sum(ticked))}` : 'Move to YouTube', () => askMove(), { off: run ? 'Wait until uploading has finished.' : ticked.length ? (busy && !reading ? 'Wait a moment.' : '') : 'Tick at least one video first.' }])),
   ];
 }
 function tile(x) {
@@ -897,7 +1121,7 @@ function undoAnswer() {
 /** The same two answers, from the list in step 3. */
 function answer3(kind) {
   const key = watching;
-  if (kind === 'copy') { decide(key, 'copy'); listNote = 'It is in step 1 again, ticked to move.'; } else { pick = key; listNote = ''; }
+  if (kind === 'copy') { decide(key, 'copy'); listNote = 'It is in step 1 again, ticked to move.'; } else if (picks.has(key) || ticked().length < PER) { picks.add(key); listNote = ''; } else listNote = `Not ticked. Up to ${PER} at a time.`;
   say(listNote || 'Ticked to delete.');
   leaveWatch();
 }
@@ -1021,18 +1245,24 @@ function pairView(x) {
   const idle = !busy || busy.kind === 'list';
   const none = st.s === 'ask' ? 'Nobody knows yet whether it is there.' : st.s === 'fail' && !v.record || st.s === 'stop' && !video ? 'It is not on YouTube.' : ['up', 'wait', 'pause', 'lib', 'cut', 'fail'].includes(st.s) ? 'It is not there yet.'
     : st.s === 'sent' ? 'YouTube has not answered about it.' : st.s === 'proc' ? 'YouTube is still working on it.' : !ytReady(video) ? 'YouTube has nothing to play.' : '';
-  const can = p === 'youtube' && step === 3;
+  const vis = visOf(v);
+  const drift = vis?.way === 'less'; // made less private outside this app
+  const can = p === 'youtube' && step === 3 && !drift;
   const not = can ? lock() ? 'Look in the trash first.' : otherwork() : '';
+  const studio = v.record?.id ? `https://studio.youtube.com/video/${v.record.id}/edit` : 'https://studio.youtube.com/';
+  const kept = can && vis?.way === 'more' ? `YouTube kept it ${visName(vis.actual)}, not ${visName(vis.chosen)}. That is safer, so it can still be deleted. ` : '';
+  const side = drift ? `Set it back to ${visName(vis.chosen)} in YouTube Studio, then check again.` : not || (can ? `${kept}The YouTube copy stays.` : '');
   return [
     main('pair', 'watch', h('div', { class: 'ttl' }, h('span', { class: f.tone, style: 'align-self:center' }, mark(f.kind, 30)), h('h1', null, f.title), h('span', { class: 'mute', title: v.fileName ?? null }, f.why), shut()),
       h('section', { class: 'cmp p2', 'aria-label': 'The two copies', 'data-key': `cmp-${v.key}`, 'data-deep': true },
         h('div', { class: 'pair', 'data-key': 'pair', 'data-deep': true }, photosSide(v), none ? h('div', { class: 'scr nil', 'data-key': 'nil' }, h('p', null, none)) : youtubeSide(v, video, len ? length(len) : '')),
         h('table', null, h('thead', null, h('tr', null, h('th', { class: 'rh' }, h('span', { class: 'vh' }, 'Copy')), facts.map((t) => h('th', { scope: 'col' }, t.name)))),
           h('tbody', null, h('tr', null, h('th', { class: 'rh', scope: 'row' }, 'Google Photos'), facts.map((t) => h('td', null, t.a))), h('tr', null, h('th', { class: 'rh', scope: 'row' }, 'YouTube'), facts.map((t) => h('td', null, t.b))),
-            h('tr', null, h('th', { class: 'rh', scope: 'row' }, 'Same?'), facts.map((t) => h('td', { class: 'm' }, h('span', { class: WORDS[t.m][2] }, mark(WORDS[t.m][0], 16), WORDS[t.m][1])))))))),
-    h('footer', { class: 'foot ask3' }, h('span', { class: 'mute sm side1' }, not || (can ? 'The YouTube copy stays.' : '')), button('pback', 'btn sec', 'Back', leaveWatch),
-      can ? button('pdel', 'btn', `Delete from Google Photos, ${gb(v.size)}`, () => { pick = pairing; trashIt(); }, { disabled: !!not }) : null,
-      st.s === 'ask' ? [button('notthere', 'btn sec', 'It is not there', clearUncertain, { disabled: !idle }), link('btn', 'Open YouTube Studio', v.record?.id ? `https://studio.youtube.com/video/${v.record.id}/edit` : 'https://studio.youtube.com/')] : null,
+            h('tr', null, h('th', { class: 'rh', scope: 'row' }, 'Same?'), facts.map((t) => { const w = t.name === 'Seen by' && t.m === 'diff' ? ['stop', 'Not as you chose', 'c-stop'] : word(t.m); return h('td', { class: 'm' }, h('span', { class: w[2] }, mark(w[0], 16), w[1])); })))))),
+    h('footer', { class: 'foot ask3' }, h('span', { class: 'mute sm side1' }, side), button('pback', 'btn sec', 'Back', leaveWatch),
+      drift ? link('btn', 'Open YouTube Studio', studio, { 'data-f': 'studio' }) : null,
+      can ? button('pdel', 'btn', `Delete from Google Photos, ${gb(v.size)}`, () => { const k = pick = pairing; trashIt().then(() => { if (pick !== k) picks.delete(k); }); }, { disabled: !!not }) : null,
+      st.s === 'ask' ? [button('notthere', 'btn sec', 'It is not there', clearUncertain, { disabled: !idle }), drift ? null : link('btn', 'Open YouTube Studio', studio)] : null,
       p === 'lost' ? button('redo', 'btn', 'Try again', () => { const k = pairing; pairing = null; startMove([k]); }, { disabled: !idle }) : null),
   ];
 }
@@ -1043,13 +1273,22 @@ const otherwork = () => (run ? 'Wait until uploading has finished.' : busy && bu
 function deleteView(all) {
   const rows = delRows(all);
   const bare = rows.filter((x) => x.p === 'choose');
+  if (busy?.kind === 'trash' && many) {
+    const m = many;
+    return calm('delmany', 'clock', 'mute', `Deleting ${m.index + 1} of ${m.n}…`, `Each one is read back before the next.${m.went ? ` ${m.went} ${m.went === 1 ? 'is' : 'are'} in the trash so far.` : ''}`,
+      foot(note('Keep this tab and the Google Photos tab open.'), 'stopmany', 'Stop after this one', () => { m.stop = true; say('It stops after this one.'); render(); }, { off: m.stop ? 'It stops after this one.' : '' }));
+  }
   if (busy?.kind === 'trash') return calm('deleting', 'clock', 'mute', 'Moving it to the trash…', 'Please wait. It is read back to be sure.', foot(null, 'deleting', 'Deleting', null, { off: 'This takes a moment.' }));
-  if (busy?.kind === 'check') return calm('checking', 'clock', 'mute', 'Checking the copy once more…', 'YouTube is asked now. Nothing is deleted yet.', foot(null, 'checking', 'Deleting', null, { off: 'This takes a moment.' }));
+  if (busy?.kind === 'check') return calm('checking', 'clock', 'mute', many ? 'Checking the copies once more…' : 'Checking the copy once more…', 'YouTube is asked now. Nothing is deleted yet.', foot(null, 'checking', 'Deleting', null, { off: 'This takes a moment.' }));
   if (busy?.kind === 'look') return calm('looking', 'clock', 'mute', 'Reading the trash and the list again…', 'Nothing is changed.', foot(null, 'looking', 'Reading', null, { off: 'This takes a moment.' }));
   const l = lock();
   if (l) return lockView(l);
   if (trashed) {
     const t = trashed;
+    const b = batch?.t === t ? batch : null; // the end of a delete of several
+    const several = b && b.went.length > 1;
+    const size = several ? b.went.reduce((n, w) => n + (w.size > 0 ? w.size : 0), 0) : t.size;
+    const warn = b ? batchLine(b) : '';
     const more = rows.length > 0;
     const mine = () => trashedHere.slice(-8).map((k) => h('span', null, thumbOf(k)));
     const tap = () => h('i', { class: 'tap' });
@@ -1057,8 +1296,12 @@ function deleteView(all) {
     const phone = (...kids) => h('div', { class: 'fone', 'aria-hidden': 'true' }, kids);
     const stepText = (n, ...kids) => h('p', null, h('b', null, String(n)), h('span', null, kids));
     const strong = (t) => h('strong', null, t);
-    return [main('done', 'aft', h('div', { class: 'ttl' }, h('span', { class: 'c-ink', style: 'align-self:center' }, mark('check', 30)), h('h1', null, 'It is in the Google Photos trash.'), h('span', { class: 'mute' }, `${t.fileName}, ${gb(t.size)}.`)),
-      h('section', { class: 'ph3', 'aria-labelledby': 'ph3h' }, h('h2', { id: 'ph3h' }, 'Now remove it from your iPhone'), h('ol', null,
+    const out = movedOut();
+    const gain = out.total > 0 ? h('div', { class: 'gain', title: out.words }, ring(34, 18, 5, out.part),
+      h('span', { class: 'stack g4' }, h('strong', null, size > 0 ? [h('span', { class: 'c-safe' }, `+${gb(size)}`), ' · '] : null, `${gb(out.total)} moved out so far`),
+        h('span', { class: 'sm mute' }, [`${count(out.n)}.`, out.next ? `${gb(out.next * 1e9 - out.total)} more to ${out.next} GB.` : ''].filter(Boolean).join(' ')))) : null;
+    return [main('done', 'aft', h('div', { class: 'ttl' }, h('span', { class: 'c-ink', style: 'align-self:center' }, mark('check', 30)), h('h1', null, several ? `${b.went.length} are in the Google Photos trash.` : 'It is in the Google Photos trash.'), h('span', { class: 'mute' }, several ? `${count(b.went.length)}, ${gb(size)}.` : `${t.fileName}, ${gb(t.size)}.`), gain),
+      h('section', { class: `ph3${warn ? ' tight' : ''}`, 'aria-labelledby': 'ph3h' }, warn ? h('div', { class: 'vwarn', role: 'status' }, mark('info', 20), h('span', null, warn)) : null, h('h2', { id: 'ph3h' }, several ? 'Now remove them from your iPhone' : 'Now remove it from your iPhone'), h('ol', null,
         h('li', null, phone(h('div', { class: 'fbar' }, h('span', { class: 'fq' }, 'Search'), h('span', { class: 'fav' }, 'H', tap())), h('div', { class: 'fgrid' }, COLORS.map((c) => h('span', { style: `--c:${c}` })))),
           stepText(1, 'Open ', strong('Google Photos'), ' on your iPhone. Tap your picture, top right.')),
         h('li', null, phone(h('div', { class: 'fsheet' }, h('span', { class: 'frow' }, 'Backup', h('small', null, 'Backup complete')), h('span', { class: 'frow hot' }, 'Review out-of-sync changes', tap()), h('span', { class: 'frow no' }, '… items to delete from this device', h('em', null, '✕')), h('span', { class: 'frow' }, 'Google Photos settings'))),
@@ -1093,25 +1336,26 @@ function deleteView(all) {
   delSeen = Math.max(delSeen, delPage);
   const shown = rows.slice(delPage * PER, (delPage + 1) * PER);
   loadThumbs(shown).catch(() => {});
-  const x = rows.find((y) => y.v.key === pick);
+  const ticks = ticked(rows);
+  const x = ticks.length === 1 ? ticks[0] : null; // one ticked: the path for one video
   const turn = (f, label, sign, by, off) => h('button', { type: 'button', class: 'ib', 'data-f': f, 'aria-label': label, disabled: off, onclick: () => { delPage = Math.max(0, delPage + by); render(); } }, mark(sign, 20));
-  const off = !x ? 'Tick the one to delete.' : delSeen < pages - 1 ? 'Look at every page first.' : otherwork();
+  const off = !ticks.length ? 'Tick the ones to delete.' : delSeen < pages - 1 ? 'Look at every page first.' : otherwork();
   return [
     main('del', '', title(`${count(rows.length)} ${rows.length === 1 ? 'is' : 'are'} ready to delete.`),
     h('ul', { class: 'grid three3', 'data-key': 'dgrid', 'data-deep': true }, shown.map(delTile))),
     h('footer', { class: 'foot' }, pages > 1 ? h('span', { class: 'pg' }, turn('dprev', 'Previous page', 'left', -1, delPage === 0), h('span', null, `Page ${delPage + 1} of ${pages}`), turn('dnext', 'Next page', 'right', 1, delPage >= pages - 1)) : null,
-      note(listNote || 'One at a time for now.'), off ? h('span', { class: 'why', id: 'why' }, off) : null,
-      button('send', `btn${x?.p === 'choose' ? ' bare' : ''}`, x ? `Delete from Google Photos, ${gb(x.v.size)}` : 'Delete from Google Photos', trashIt, { disabled: !!off, 'aria-describedby': off ? 'why' : null })),
+      note(listNote || `${ticks.length} ticked. Up to ${PER} at a time.`), off ? h('span', { class: 'why', id: 'why' }, off) : null,
+      button('send', `btn${ticks.some((y) => y.p === 'choose') ? ' bare' : ''}`, x ? `Delete from Google Photos, ${gb(x.v.size)}` : ticks.length ? `Delete ${ticks.length} from Google Photos, ${gb(sum(ticks))}` : 'Delete from Google Photos', deletePicked, { disabled: !!off, 'aria-describedby': off ? 'why' : null })),
   ];
 }
 function delTile(x) {
   const { v, p } = x;
   const there = p === 'youtube';
-  const on = pick === v.key;
+  const on = picks.has(v.key);
   const name = v.fileName ?? 'the video';
   const when = Number.isFinite(v.timestamp) ? day(v.timestamp) : '';
   return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: 'vid' },
-    h('input', { class: 'cb', type: 'checkbox', checked: on, 'data-f': `del-${v.key}`, 'aria-label': `Delete ${name}, ${when}, ${gb(v.size)}, ${there ? 'on YouTube' : 'no copy'}`, onchange: (e) => { pick = e.target.checked ? v.key : null; render(); } }),
+    h('input', { class: 'cb', type: 'checkbox', checked: on, 'data-f': `del-${v.key}`, 'aria-label': `Delete ${name}, ${when}, ${gb(v.size)}, ${there ? 'on YouTube' : 'no copy'}`, onchange: (e) => { if (!e.target.checked) picks.delete(v.key); else if (ticked().length < PER) picks.add(v.key); else e.target.checked = false; render(); } }),
     h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': there ? `Look at both copies of ${name}, ${when}` : `Watch ${name}, ${when}`, onclick: () => (there ? pair(v.key) : watch(v.key)) }, thumbOf(v.key), v.duration > 0 ? h('span', { class: 'len' }, length(v.duration)) : null),
     h('span', { class: 'cap' }, h('b', null, gb(v.size)), there ? h('span', { class: 'line1 c-safe' }, mark('check', 16), 'On YouTube') : h('span', { class: 'line1 c-stop' }, mark('stop', 16), 'No copy'))));
 }

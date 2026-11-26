@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { trashOne, bareReasons, movedReasons, lookAgain, openEnds } from '../extension/lib/trash.js';
+import { trashOne, trashSeveral, bareReasons, movedReasons, lookAgain, openEnds } from '../extension/lib/trash.js';
 import { trashCall, parseTrashPage, libraryId } from '../extension/lib/photos.js';
 import { StopError } from '../extension/lib/transfer.js';
 import { plainError } from '../extension/ui/text.js';
@@ -260,7 +260,7 @@ test('says which side did not answer, and why', async () => {
   const w = movedWorld({ getVideo: async () => { throw new Error('x'); } });
   await assert.rejects(trashOne(M, w.d), /^StopError: Nothing was deleted\. YouTube did not answer|Nothing was deleted\. YouTube did not answer, so the copy could not be checked\./);
   const u = movedWorld({ getVideo: async () => ({ ...VID, status: { uploadStatus: 'processed', privacyStatus: 'unlisted' } }) });
-  await assert.rejects(trashOne(M, u.d), /not Private any more/);
+  await assert.rejects(trashOne(M, u.d), /Nothing was deleted\. It is Unlisted on YouTube, but you chose Private\. Set it back to Private in YouTube Studio, then check again\./);
   const l = movedWorld({ getVideo: async () => ({ ...VID, contentDetails: { duration: 'PT9S' } }) });
   await assert.rejects(trashOne(M, l.d), /Length is not the same on both sides/);
 });
@@ -285,4 +285,134 @@ test('why a moved video may not be deleted', () => {
   assert.deepEqual(movedReasons({ ...all, video: { ...VID, recordingDetails: { recordingDate: '2026-11-20' } } }), ['Recorded is different']);
   for (const k of ['record', 'details', 'video', 'channelId']) assert.ok(movedReasons({ ...all, [k]: undefined }).length, k);
   assert.ok(movedReasons({ ...all, record: { ...REC, id: undefined } }).length);
+});
+
+// ---- who may watch it
+const VISES = ['private', 'unlisted', 'public'];
+const seenAs = (privacyStatus) => ({ ...VID, status: { uploadStatus: 'processed', privacyStatus } });
+
+test('why a moved video may not be deleted: as private as chosen or more passes, less or unknown blocks', () => {
+  for (const chosen of VISES) {
+    for (const actual of VISES) {
+      const less = VISES.indexOf(actual) > VISES.indexOf(chosen);
+      const record = Object.freeze({ ...REC, privacy: chosen });
+      assert.deepEqual(movedReasons({ record, details: DET, video: seenAs(actual), channelId: 'C', duration: 5600 }),
+        less ? [`privacy is ${actual}, not ${chosen}`] : [], `${chosen} ${actual}`);
+    }
+    for (const odd of [undefined, '', 'Private', 'secret']) {
+      assert.deepEqual(movedReasons({ record: { ...REC, privacy: chosen }, details: DET, video: seenAs(odd), channelId: 'C', duration: 5600 }), [`privacy is unknown, not ${chosen}`], String(odd));
+    }
+    assert.deepEqual(movedReasons({ record: { ...REC, privacy: chosen }, details: DET, video: { ...VID, status: undefined }, channelId: 'C', duration: 5600 }).at(-1), `privacy is unknown, not ${chosen}`);
+  }
+  // A record from before the choice: Private only.
+  assert.deepEqual(movedReasons({ record: REC, details: DET, video: seenAs('unlisted'), channelId: 'C', duration: 5600 }), ['privacy is unlisted, not private']);
+  assert.deepEqual(movedReasons({ record: { ...REC, privacy: 'Unlisted' }, details: DET, video: seenAs('unlisted'), channelId: 'C', duration: 5600 }), ['privacy is unlisted, not private']);
+});
+
+test('a moved video with another visibility: deleted as chosen, kept when it is less private', async () => {
+  const go = (privacy, actual) => movedWorld({ getRecord: async () => ({ ...REC, privacy }), getVideo: async () => seenAs(actual) });
+  for (const [chosen, actual] of [['unlisted', 'unlisted'], ['public', 'public'], ['public', 'private'], ['public', 'unlisted'], ['unlisted', 'private']]) {
+    const w = go(chosen, actual);
+    assert.equal((await trashOne(M, w.d)).state, 'trashed', `${chosen} ${actual}`);
+    assert.deepEqual(w.calls, [cid('A')]);
+  }
+  for (const [chosen, actual, text] of [
+    ['unlisted', 'public', 'It is Public on YouTube, but you chose Unlisted. Set it back to Unlisted in YouTube Studio, then check again.'],
+    ['private', 'public', 'It is Public on YouTube, but you chose Private. Set it back to Private in YouTube Studio, then check again.'],
+    ['public', undefined, 'YouTube did not say who can watch it.'],
+    ['public', 'Public', 'YouTube did not say who can watch it.'],
+  ]) {
+    const w = go(chosen, actual);
+    await assert.rejects(trashOne(M, w.d), { message: `Nothing was deleted. ${text}` }, `${chosen} ${actual}`);
+    assert.deepEqual([w.calls, w.notes], [[], []]);
+  }
+});
+
+// ---- several at once: strictly one by one, through trashOne
+const THREE = ['AF1QipK1', 'AF1QipK2', 'AF1QipK3'].map((key, i) => ({ key, fileName: `K${i + 1}.MOV`, size: 100 + i, kind: 'bare' }));
+function many(over = {}) {
+  const w = world();
+  w.lib = new Map(THREE.map((v) => [v.key, cid(v.key)]));
+  const byKey = new Map(THREE.map((v) => [v.key, v]));
+  w.d.getDetails = async (key) => ({ key, fileName: byKey.get(key).fileName, size: byKey.get(key).size, timestamp: 1, contentId: cid(key), sharedAlbums: [] });
+  w.d.entries = async () => new Map(w.notes.map(({ k, ...n }) => [k, n])); // what was written down, as the app reads it again
+  Object.assign(w.d, over);
+  w.order = [];
+  const real = w.d.moveToTrash;
+  w.d.moveToTrash = async (id) => { w.order.push(id); return real(id); };
+  return w;
+}
+
+test('several: all go, one call each, in order', async () => {
+  const w = many();
+  const seen = [];
+  const r = await trashSeveral(THREE, w.d, { onEach: (what, out, i) => { seen.push([what.key, out.state, i]); } });
+  assert.deepEqual(r, { went: THREE, at: null, why: null, outcome: null });
+  assert.deepEqual(w.order, THREE.map((v) => cid(v.key)));
+  assert.deepEqual(seen, THREE.map((v, i) => [v.key, 'trashed', i]));
+  assert.equal(w.lib.size, 0);
+});
+
+test('several: a refusal at the second stops before the third', async () => {
+  const w = many({ marked: async (k) => k !== THREE[1].key });
+  const seen = [];
+  const r = await trashSeveral(THREE, w.d, { onEach: (what, out) => { seen.push([what.key, out.state]); } });
+  assert.deepEqual(r.went, [THREE[0]]);
+  assert.equal(r.at, 1);
+  assert.equal(r.why, 'refused');
+  assert.match(r.outcome.error.message, /^Nothing was deleted\. It was not marked for this\./);
+  assert.deepEqual(w.order, [cid(THREE[0].key)], 'nothing is sent after the refusal');
+  assert.deepEqual(seen, [[THREE[0].key, 'trashed'], [THREE[1].key, 'refused']]);
+  assert.deepEqual([...w.lib.keys()], [THREE[1].key, THREE[2].key]);
+});
+
+test('several: any throw counts as a refusal, and stops', async () => {
+  const w = many();
+  const get = w.d.getDetails;
+  w.d.getDetails = async (key) => { if (key === THREE[0].key) throw new Error('Google Photos answered HTTP 500.'); return get(key); };
+  const r = await trashSeveral(THREE, w.d);
+  assert.deepEqual([r.went, r.at, r.why], [[], 0, 'refused']);
+  assert.deepEqual(w.order, []);
+});
+
+test('several: an unclear one stops, and the next would be refused anyway', async () => {
+  const w = many();
+  w.d.moveToTrash = async (id) => { w.order.push(id); }; // it says ok, nothing happens
+  const r = await trashSeveral(THREE, w.d);
+  assert.deepEqual([r.went, r.at, r.why, r.outcome.state], [[], 0, 'unclear', 'unclear']);
+  assert.deepEqual(w.order, [cid(THREE[0].key)]);
+  assert.equal(openEnds(await w.d.entries()).size, 1);
+  await assert.rejects(trashOne(THREE[1], w.d), /Look in the trash first/);
+  assert.deepEqual(w.order, [cid(THREE[0].key)]);
+});
+
+test('several: something else in the trash with one stops it', async () => {
+  const w = many();
+  const real = w.d.moveToTrash;
+  w.d.moveToTrash = async (id) => { await real(id); if (id === cid(THREE[0].key)) w.trash.push({ key: 'AF1QipX', contentId: cid('X') }); };
+  const r = await trashSeveral(THREE, w.d);
+  assert.deepEqual([r.went, r.at, r.why], [[THREE[0]], 0, 'extra']);
+  assert.deepEqual(w.order, [cid(THREE[0].key)]);
+});
+
+test('several: Stop between videos finishes the one under way, then sends nothing', async () => {
+  const w = many();
+  let stop = false;
+  const r = await trashSeveral(THREE, w.d, { stopAsked: () => stop, onStart: (what, i) => { if (i === 0) stop = true; } }); // pressed during the first
+  assert.deepEqual(r, { went: [THREE[0]], at: 1, why: 'asked', outcome: null });
+  assert.deepEqual(w.order, [cid(THREE[0].key)]);
+  assert.deepEqual([...w.lib.keys()], [THREE[1].key, THREE[2].key]);
+});
+
+test('several: every gate runs again right before each one, and only one call is ever in flight', async () => {
+  const w = many();
+  const log = [];
+  let flying = 0;
+  for (const f of ['entries', 'getDetails', 'trashList']) { const real = w.d[f]; w.d[f] = async (...x) => { log.push(f); return real(...x); }; }
+  const send = w.d.moveToTrash;
+  w.d.moveToTrash = async (id) => { assert.equal(flying++, 0); log.push('send'); try { return await send(id); } finally { flying--; } };
+  await trashSeveral(THREE, w.d);
+  const parts = log.join(' ').split('send').slice(0, 3);
+  for (const p of parts) for (const f of ['entries', 'getDetails', 'trashList']) assert.ok(p.includes(f), `${f} before each call`);
+  assert.equal(log.filter((x) => x === 'send').length, 3);
 });

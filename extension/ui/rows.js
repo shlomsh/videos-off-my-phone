@@ -1,4 +1,4 @@
-import { confirmation, unsafeReasons } from '../lib/gate.js';
+import { confirmation, unsafeReasons, visibility, visName, visWho } from '../lib/gate.js';
 import { recordingDate } from '../lib/youtube.js';
 import { gb, length, day, isoLength, picture4k, plainReason } from './text.js';
 
@@ -46,16 +46,21 @@ export function rowState(v, c) {
   const video = c.statuses.get(r.id);
   const conf = confirmation(r, video, c.channelId);
   if (conf.level === 'bad') {
-    const missing = !video;
-    const priv = video?.status?.privacyStatus;
-    return out('stop', 'stop', missing ? 'Missing on YouTube' : priv && priv !== 'private' ? 'Not Private any more' : 'Something is wrong', missing ? 'YouTube does not list this video.' : conf.text, 'stop', 'Do not delete', missing ? 'Keep the original.' : priv && priv !== 'private' ? 'Set it back to Private, then check again.' : 'Keep the original.');
+    if (!video) return out('stop', 'stop', 'Missing on YouTube', 'YouTube does not list this video.', 'stop', 'Do not delete', 'Keep the original.');
+    const vis = visibility(r, video);
+    if (vis.way === 'less') {
+      const [now, chose] = [visName(vis.actual), visName(vis.chosen)];
+      return out('stop', 'stop', 'Not as you chose', `It is ${now} on YouTube. You chose ${chose}.`, 'stop', 'Do not delete', `Set it back to ${chose} in YouTube Studio, then check again.`);
+    }
+    return out('stop', 'stop', 'Something is wrong', conf.text, 'stop', 'Do not delete', 'Keep the original.');
   }
+  const seen = visName(visibility(r, video).actual); // known here: anything else is 'bad' above
   const got = Number(video.fileDetails?.fileSize) === r.size;
   const vs = video.fileDetails?.videoStreams?.[0];
-  if (conf.level === 'wait') return out('proc', 'clock', 'Arrived, still processing', `${got ? `The whole file, ${gb(r.size)}.` : 'Size not reported yet.'} Private.`, 'clock', 'Not yet', 'YouTube is still processing it.');
+  if (conf.level === 'wait') return out('proc', 'clock', 'Arrived, still processing', `${got ? `The whole file, ${gb(r.size)}.` : 'Size not reported yet.'} ${seen}.`, 'clock', 'Not yet', 'YouTube is still processing it.');
   const pic = picture4k(vs?.widthPixels, vs?.heightPixels);
-  const meta = `The whole file, ${gb(r.size)}. Private.${pic ? ` ${pic}${vs.frameRateFps ? `, ${Math.round(vs.frameRateFps)} frames a second` : ''}.` : ''}`;
-  if (!/^[0-9a-f]{64}$/.test(r.sha256 ?? '')) return out('held', 'yt', 'On YouTube, not fully checked', 'Private. The upload was interrupted.', 'held', 'Keep it', 'It was never checked from start to end.');
+  const meta = `The whole file, ${gb(r.size)}. ${seen}.${pic ? ` ${pic}${vs.frameRateFps ? `, ${Math.round(vs.frameRateFps)} frames a second` : ''}.` : ''}`;
+  if (!/^[0-9a-f]{64}$/.test(r.sha256 ?? '')) return out('held', 'yt', 'On YouTube, not fully checked', `${seen}. The upload was interrupted.`, 'held', 'Keep it', 'It was never checked from start to end.');
   const held = c.held?.get(key);
   const shared = held?.find((x) => x.startsWith('in a shared album'));
   if (held?.length) return out('held', 'yt', 'Confirmed', meta, 'held', shared ? 'Keep it' : 'Not yet', plainReason(shared ?? held[0]));
@@ -63,7 +68,11 @@ export function rowState(v, c) {
 }
 
 export const canCopy = (s) => ['lib', 'cut', 'fail'].includes(s);
-/** Side-by-side facts. `m` is same, wait, fine, diff or none (not checked). */
+/**
+ * Side-by-side facts. `m` is same, wait, fine, diff or none (not checked); for 'Seen by' also
+ * shared, more (YouTube made it more private than chosen) or asyou (as chosen, not Private).
+ * Only diff counts as different.
+ */
 export function compare(v, st, details, video) {
   const r = v.record;
   const out = [];
@@ -80,9 +89,12 @@ export function compare(v, st, details, video) {
   const sorted = (x, y) => [Number(x), Number(y)].sort((p, q) => p - q).join();
   add('Picture', pic, ytPic && `${ytPic}${vs.frameRateFps ? `, ${Math.round(vs.frameRateFps)} frames a second` : ''}`,
     !ytPic ? 'wait' : !pic ? 'none' : sorted(details.width, details.height) === sorted(vs.widthPixels, vs.heightPixels) ? 'same' : 'diff');
+  const vis = visibility(r, video);
+  const raw = video?.status?.privacyStatus;
   add('Seen by', details ? (details.sharedAlbums?.length ? `You, and the shared album “${details.sharedAlbums.join('”, “')}”` : 'You, as far as Google Photos says') : null,
-    video?.status?.privacyStatus ? (video.status.privacyStatus === 'private' ? 'Only you (Private)' : `${video.status.privacyStatus}, not Private`) : null,
-    !video ? 'wait' : video.status?.privacyStatus !== 'private' ? 'diff' : !details ? 'none' : details.sharedAlbums?.length ? 'shared' : 'fine');
+    vis.actual ? `${visWho(vis.actual)} (${visName(vis.actual)})` : raw ? String(raw) : null,
+    !video ? 'wait' : vis.way === 'less' || vis.way === 'unknown' ? 'diff' : !details ? 'none' : details.sharedAlbums?.length ? 'shared'
+      : vis.way === 'more' ? 'more' : vis.chosen !== 'private' ? 'asyou' : 'fine');
   add('State', details ? (details.original ? 'Original quality' : 'Not Original quality') : null,
     pending ? (video ? 'Still processing' : null) : 'Processing finished', pending ? 'wait' : !details ? 'none' : details.original ? 'fine' : 'diff');
   const whole = /^[0-9a-f]{64}$/.test(r?.sha256 ?? '');
@@ -112,7 +124,7 @@ export function factsFor(v, st, d, video) {
     { name: 'Recorded', a: Number.isFinite(ts) ? day(ts) : 'Not checked', b: rec ? day(Date.parse(`${rec}T12:00:00Z`)) : wait, m: !rec ? 'wait' : !mine ? 'none' : mine === rec ? 'same' : 'diff' },
     { name: 'State', ...state, b: state.m === 'wait' ? (video ? 'Busy' : wait) : 'Finished' },
     { name: 'Every byte', ...every, a: every.m === 'same' ? 'Read to the end' : 'Not checked', b: every.m === 'same' ? 'All arrived' : 'Broke off' },
-    { name: 'Seen by', a: !d ? 'Not checked' : d.sharedAlbums?.length ? 'A shared album' : 'No shared album', b: !video ? wait : video.status?.privacyStatus === 'private' ? 'Only you' : `${video.status?.privacyStatus ?? 'Not known'}`, m: seen.m },
+    { name: 'Seen by', a: !d ? 'Not checked' : d.sharedAlbums?.length ? 'A shared album' : 'No shared album', b: !video ? wait : visWho(visibility(v.record, video).actual) ?? 'Not known', m: seen.m },
   ];
   // Nothing has arrived: say that instead of "waiting for YouTube".
   if (how) for (const f of list) if (f.m === 'wait') Object.assign(f, { b: how, m: how === 'Waiting' ? 'wait' : how === 'Not there' ? 'nothere' : 'unknown' });
