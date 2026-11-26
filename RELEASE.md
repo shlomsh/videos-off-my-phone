@@ -5,6 +5,8 @@
 2. Run end-to-end tests in your own Chrome, to see it works as expected. (Here, now that 0.11.0 is installed.)
 3. Bug fixing and polish.
 
+**Submitted for review on 26 Nov 2026: version 0.11.2, Pending review, manual publish.** After approval, publish within 30 days or it expires. Don't upload a new package while it is in review unless you want to restart the review; 0.12.0 goes up afterwards as its own upload.
+
 Store draft created (26 Nov 2026). Item ID `imkmnploomooalicacgniiicblmfclka`; its sign-in redirect is `https://imkmnploomooalicacgniiicblmfclka.chromiumapp.org/`. The store refuses a manifest `key`, so build uploads with `npm run pack`. The local copy keeps its old ID until you choose how records carry over (backup file, or finish first).
 
 Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
@@ -83,7 +85,7 @@ Researched 26 Nov 2026. Details and sources: [docs/release-plan.md](docs/release
 - [x] Renamed inside the app, with the new start page (v38) and icon (v39), in 0.11.0.
 - [ ] Say the point on the start page and in the listing: YouTube storage doesn't count toward your Google storage. Free and open source. (Design session.)
 - [ ] **Open source** (your answers, 26 Nov 2026):
-  - [ ] Make the repo public. Ask once more before switching. (Everything below is ready.)
+  - [x] Repo made public on 26 Nov 2026, with your yes.
   - [x] License: **MIT** (`LICENSE`).
   - [x] Every commit's author is your GitHub noreply address. History rewritten 26 Nov 2026; the merged branches v35, v36 and v38 were deleted from GitHub.
   - [x] `UX_PROMPT.md` removed from the repo and from its history. Open-source README written, with the client ID note for forks.
