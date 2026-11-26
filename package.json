@@ -2,5 +2,8 @@
   "name": "video-offload",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test test/*.test.mjs" }
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "pack": "sh tools/pack-store.sh"
+  }
 }
