@@ -383,3 +383,5 @@ body{margin:0}
 .ge .dlg ul.fin{gap:12px}.ge .dlg .fin li{grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start;line-height:1.5}
 .ge .dlg .fin0{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start}
 @media (max-width:560px){.ge .dlg .bt{flex-wrap:wrap}}
+/* After a delete: when the phone steps do not fit (a yellow line, many "Deleted here"), this step scrolls instead of running under the footer. */
+.ge .aft{overflow-y:auto}
