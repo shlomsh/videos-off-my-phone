@@ -174,6 +174,17 @@ export function placeOf(st, facts, o = {}) {
  * waits to continue in Move to YouTube. It is then never in Choose: no tick there, no Send to Delete,
  * no player. o: { queued, ticked, running (in the queue that runs now), marked (sent to Delete) }
  */
+/**
+ * The words on a faded tile in Choose for a video already in step 2, by its state there (canvas v52):
+ * on its way or with YouTube, it needs a look, or it stays. Empty for what Choose does not show.
+ */
+export function stepTwoWords(p, st) {
+  if (['moving', 'working'].includes(p)) return 'Going to YouTube';
+  if (['look', 'lost'].includes(p)) return 'Needs a look';
+  if (p === 'stays' && st?.s !== 'again' && !/another channel/i.test(st?.word ?? '')) return 'Stays in Google Photos'; // shared album, not fully checked
+  return '';
+}
+
 export const shownPlace = (p, o = {}) => (p === 'choose' && o.queued && o.ticked && !o.running && !o.marked ? 'moving' : p);
 
 /**

@@ -9,7 +9,7 @@ import { askRemove, askFinish } from './ui/account.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
 import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, phoneWords, initial } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
-import { rowState, placeOf, shownPlace, gridPicks, gate, canCopy, factsFor, differs } from './ui/rows.js';
+import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
 import { ytProgress, keepHighest, progressWords, agoWords, checkedWords, isSlow, SLOW_NOTE, tabTitle, lowestPct, askEvery } from './ui/working.js';
 
@@ -1159,8 +1159,7 @@ function awayOf(x) {
   if (!x.v.listed) return '';
   if (decisionOf(x)) return 'In Delete, no copy';
   if (x.p === 'youtube') return 'In Delete';
-  if (['moving', 'working', 'look', 'lost'].includes(x.p)) return 'Going to YouTube';
-  return '';
+  return stepTwoWords(x.p, x.st);
 }
 /** The grid: what can be chosen, with the videos already in Move to YouTube or in Delete among them, faded. */
 function gridList(all = everything()) {
@@ -1269,7 +1268,7 @@ function awayTile(x) {
   const { v } = x;
   const where = awayOf(x);
   const when = Number.isFinite(v.timestamp) ? day(v.timestamp) : '';
-  return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: 'vid away' },
+  return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: `vid away${where === 'Needs a look' ? ' look' : ''}` },
     h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': `${v.fileName ?? 'The video'}, ${when}. ${where}. Open it there`, onclick: () => openAway(v.key) }, thumbOf(v.key), v.duration > 0 ? h('span', { class: 'len' }, length(v.duration)) : null),
     h('span', { class: 'cap' }, h('b', null, gb(v.size)), ` ${where}`)));
 }

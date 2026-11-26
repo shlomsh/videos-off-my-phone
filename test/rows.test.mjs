@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rowState, placeOf, shownPlace, gridPicks, gate, compare, canCopy, factsFor, differs } from '../extension/ui/rows.js';
+import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, compare, canCopy, factsFor, differs } from '../extension/ui/rows.js';
 import { VIS, visName } from '../extension/lib/gate.js';
 import { plainReason, plainError, isoLength, amountLine, timeLeft, sentLine } from '../extension/ui/text.js';
 
@@ -218,4 +218,17 @@ test('Send and Move in Choose count the same ticks', () => {
   assert.deepEqual(move.map((x) => x.v.key), ['a', 'b']);
   assert.deepEqual(send.map((x) => x.v.key), ['a', 'b']);
   assert.deepEqual(gridPicks(rows, new Set(['w', 'cut'])), { move: [], send: [] });
+});
+
+test('a faded tile in Choose says where the video is in step 2 (v52)', () => {
+  for (const p of ['moving', 'working']) assert.equal(stepTwoWords(p, { s: 'proc', word: '' }), 'Going to YouTube');
+  assert.equal(stepTwoWords('look', { s: 'stop', word: 'Missing on YouTube' }), 'Needs a look');
+  assert.equal(stepTwoWords('lost', { s: 'cut', word: '' }), 'Needs a look');
+  assert.equal(stepTwoWords('stays', { s: 'held', word: 'In a shared album' }), 'Stays in Google Photos');
+  assert.equal(stepTwoWords('stays', { s: 'yt', word: 'Not fully checked' }), 'Stays in Google Photos');
+  // Moved before, or on another channel: not shown in Choose, as before.
+  assert.equal(stepTwoWords('stays', { s: 'again', word: 'Moved before' }), '');
+  assert.equal(stepTwoWords('stays', { s: 'sent', word: 'On another channel' }), '');
+  assert.equal(stepTwoWords('choose', { s: 'lib' }), '');
+  assert.equal(stepTwoWords('youtube', { s: 'yt' }), '');
 });

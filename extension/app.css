@@ -196,6 +196,7 @@ container-type:inline-size;min-height:100vh;background:var(--bg);color:var(--ink
 @container (max-width:900px){.ge .chk,.ge .cmp{align-content:start;grid-template-columns:minmax(0,1fr)}.ge .chk{grid-template-rows:auto auto}.ge .side{align-items:flex-start}.ge .cmp>*{min-width:0}}
 @container (max-width:600px){.ge table{display:block;overflow-x:auto}.ge td,.ge th{white-space:nowrap}}
 .ge .q .ok.no{background:var(--stop);color:var(--bg)}
+.ge .vid.away.look .cap{color:var(--wait);font-weight:500} /* v52: a faded tile that needs a look */
 
 /* what the real page needs on top of the design */
 body{margin:0}
