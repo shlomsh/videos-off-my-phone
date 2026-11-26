@@ -1188,7 +1188,7 @@ const focusOn = (f) => queueMicrotask(() => { const b = document.querySelector(`
 function undoSend() {
   const b = sentBar;
   if (!b) return;
-  for (const k of b.keys) if (marks.has(k) && !records.has(k)) decide(k, 'copy');
+  for (const k of b.keys) if (marks.has(k) && !records.has(k)) decide(k, !b.ticks || b.ticks.has(k) ? 'copy' : null); // the ticks as they were
   sentBar = null;
   plus = null;
   render();
@@ -1332,7 +1332,7 @@ function answer(kind, e) {
 /** The moment is over (or skipped): on to the next video, keeping the note with its Undo. */
 function endStamp() {
   if (!stamp) return;
-  const { next, list, key } = stamp;
+  const { next, list, key, kind, x } = stamp;
   dropStamp();
   if (step !== 1 || watching !== key) return render(); // the page moved on meanwhile
   calmUntil = Date.now() + CALM;
@@ -1340,7 +1340,11 @@ function endStamp() {
   const keep = said;
   const f = document.activeElement?.dataset?.f; // where the keyboard is: the answer just given, unless the user moved on
   const to = next === null ? null : now.find((x) => x.v.key === next) ?? now[Math.min(Math.max(0, list.findIndex((x) => x.v.key === key)), now.length - 1)];
-  if (to) { watch(to.v.key); said = keep; render(); if (f) focusOn(f); } else leaveWatch();
+  if (to) { watch(to.v.key); said = keep; render(); if (f) focusOn(f); return; }
+  // Nothing after it: back to the grid, with the same bar as the grid's own Send, so Undo and Go to Delete stay.
+  if (kind === 'bare' && keep?.was) { seq += 1; sentBar = { keys: [key], size: x.v.size ?? 0, seq, ticks: new Set(keep.was.tick ? [key] : []) }; }
+  leaveWatch();
+  if (sentBar) focusOn('undosend');
 }
 function dropStamp() {
   if (!stamp) return;
