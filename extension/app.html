@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<meta name="color-scheme" content="light dark">
+<title>Video Offload</title>
+<link rel="stylesheet" href="fonts/roboto.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="ge"><div class="app">
+<header class="bar">
+  <div class="brand"><svg class="mk" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="1.5" y="9" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2.6"></rect><path d="M13 17L27 3M17.5 3H27v9.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>Video Offload</span></div>
+  <ol id="path" class="path" aria-label="Steps" hidden></ol>
+  <button id="av" type="button" class="av" popovertarget="menu" hidden></button>
+</header>
+<div id="view"></div>
+</div>
+<div id="menu" class="menu stack g16" popover>
+  <div id="account" class="stack"></div>
+  <details><summary>Details for troubleshooting</summary><pre id="log"></pre></details>
+</div>
+<div id="live" class="vh" role="status" aria-live="polite"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

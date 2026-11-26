@@ -1,0 +1,84 @@
+export const gb = (n) => (n >= 999.5e6 ? `${(n / 1e9).toFixed(2)} GB` : n >= 1e6 || !n ? `${Math.round(n / 1e6)} MB` : 'under 1 MB');
+export const length = (ms) => `${Math.floor(Math.round(ms / 1000) / 60)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
+export const clock = (d = new Date()) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+export const day = (ms) => new Date(ms).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+export const month = (ms) => new Date(ms).toLocaleDateString([], { month: 'long', year: 'numeric' });
+export const count = (n, one = 'video', many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+const left = (s) => (s < 5 ? 'a few seconds' : s < 90 ? `about ${Math.round(s)} seconds` : s < 5400 ? `about ${Math.round(s / 60)} minutes` : `about ${(s / 3600).toFixed(1)} hours`);
+/** "About 4 minutes left.", or nothing while the speed is not known. */
+export function timeLeft({ bytes, total, sent, seconds }) {
+  const speed = seconds > 2 ? sent / seconds : 0;
+  return speed > 0 && bytes < total ? `${left((total - bytes) / speed).replace(/^a/, 'A')} left.` : '';
+}
+export function sentLine({ bytes, total, sent, seconds }) {
+  const speed = seconds > 2 ? sent / seconds : 0;
+  return `${gb(bytes)} of ${gb(total)}${speed > 0 ? `, ${(speed / 1e6).toFixed(speed < 1e7 ? 1 : 0)} MB a second` : ''}`;
+}
+export function amountLine({ bytes, total, sent, seconds }) {
+  const speed = seconds > 2 ? sent / seconds : 0;
+  return [
+    `${gb(bytes)} of ${gb(total)}`,
+    speed > 0 && `${(speed / 1e6).toFixed(1)} MB a second`,
+    speed > 0 && bytes < total && `${left((total - bytes) / speed)} left`,
+  ].filter(Boolean).join(', ');
+}
+
+export function picture4k(w, height) {
+  if (!(w > 0 && height > 0)) return null;
+  const long = Math.max(w, height);
+  const name = long >= 3800 ? '4K ' : long === 1920 ? 'Full HD ' : '';
+  return name ? `${name}(${w} × ${height})` : `${w} × ${height}`;
+}
+
+/** "PT1H2M3S" as milliseconds. */
+export function isoLength(s) {
+  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(s ?? '');
+  if (!m || !m.slice(1).some(Boolean)) return null;
+  const [d, hr, min, sec] = m.slice(1).map((x) => Number(x ?? 0));
+  return ((d * 24 + hr) * 60 + min) * 60_000 + sec * 1000;
+}
+
+// The rules answer in exact words; people get plain ones.
+export function plainReason(r) {
+  const album = /^in a shared album \((.*)\)$/.exec(r);
+  if (album) return `It is in the shared album “${album[1]}”. Deleting it removes it there too.`;
+  const other = /^(.+) is different$/.exec(r);
+  if (other) return `${other[1]} is not the same on both sides. Keep the original.`;
+  const privacy = /^privacy is (\w+), not private$/.exec(r);
+  if (privacy) return privacy[1] === 'unknown' ? 'YouTube did not say whether it is Private.' : `It is not Private any more: YouTube says ${privacy[1]}. Set it back to Private, then check again.`;
+  return {
+    'no finished upload on record': 'This app has no finished upload for it.',
+    'not found on YouTube': 'YouTube does not list this video. Keep the original.',
+    'not found in Google Photos': 'Google Photos did not find it.',
+    'the upload was interrupted, so its bytes were not fully checked': 'It was never checked from start to end.',
+    'not on the signed-in channel': 'It is not on the channel you are signed in to.',
+    'not Original quality in Google Photos': 'Google Photos does not hold it in Original quality.',
+    'the Google Photos file changed since the upload': 'The file in Google Photos changed since it was moved.',
+    'shared albums unknown': 'Google Photos did not say which albums it is in.',
+    'YouTube is still processing': 'YouTube is still processing it.',
+    'size at YouTube not confirmed': 'YouTube has not confirmed the full size.',
+    'resolution at YouTube not confirmed': 'YouTube has not confirmed the picture size.',
+    'no content id from Google Photos': 'Google Photos did not give enough information to check it.',
+    'not every check passed': 'Not every check passed.',
+    'it has an upload record': 'This app moved it, or tried to, so it is not one without a copy.',
+  }[r] ?? (/[.!?]$/.test(r) ? r : `${r}.`);
+}
+
+/** Turns an error into a notice: what happened, what it means, what to do. */
+export function plainError(message) {
+  const m = String(message ?? 'Something went wrong');
+  const say = (kind, title, text, action) => ({ kind, title, text, action });
+  if (/did not approve access|canceled|cancelled/i.test(m)) return say('info', 'You are not signed in yet.', 'The sign-in window was closed, so nothing changed.', 'signin');
+  if (/different YouTube channel/i.test(m)) return say('pause', 'That is a different channel.', 'Please use the same channel as before.', 'signin');
+  if (/tick both YouTube permissions/i.test(m)) return say('info', 'Both permissions are needed.', 'Sign in again and tick both YouTube permissions.', 'signin');
+  if (/Another Video Offload page is busy/i.test(m)) return say('no', 'Video Offload is busy in another tab.', 'Use that tab, or close it and try again here.');
+  if (/^Nothing was deleted\. /.test(m)) return say('stop', 'Nothing was deleted.', m.slice(21), 'photos');
+  if (/Not signed in to Google Photos/i.test(m)) return say('fail', 'Google Photos is not signed in.', 'Sign in on the Google Photos tab, then try again.', 'photos');
+  if (/Google Photos tab|Open photos\.google\.com/i.test(m)) return say('fail', 'No Google Photos tab is open.', 'Open Google Photos in another tab and keep it open, then try again.', 'photos');
+  if (/quota|upload limit|uploadLimit|exceeded the number/i.test(m)) return say('clock', 'That is all YouTube takes for now.', 'YouTube allows about 100 uploads a day. What is left stays ticked. Try again tomorrow.');
+  if (/Three videos in a row/i.test(m)) return say('fail', 'Uploading stopped after 3 failures in a row.', 'Check your connection, then continue.');
+  if (/changed its response format/i.test(m)) return say('fail', 'Google Photos has changed.', 'This app does not understand its answer any more, so it stopped.');
+  if (/^Google Photos (answered HTTP|returned no data)/.test(m)) return say('info', 'Google Photos did not answer properly.', 'Try again in a moment. The exact answer is in the details, behind the circle at the top.');
+  return say('info', 'This did not work.', m);
+}

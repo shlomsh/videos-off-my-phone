@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Video Offload</title>
+<link rel="stylesheet" href="manager.css">
+<main>
+  <h1>Copy one video to YouTube</h1>
+  <p class="note">Proof of concept. It reads the original from Google Photos, sends it to YouTube, and never deletes anything.</p>
+
+  <section>
+    <h2>1. Video</h2>
+    <p id="pick">Open a video on photos.google.com, then click this extension's icon there.</p>
+    <dl id="details" hidden></dl>
+    <p id="warn" class="warn" hidden></p>
+  </section>
+
+  <section>
+    <h2>2. Check the original</h2>
+    <p>Reads the whole file without saving it and shows its fingerprint.</p>
+    <label>Expected SHA-256 (optional) <input id="expected" spellcheck="false" autocomplete="off"></label>
+    <button id="check" disabled>Check original</button>
+  </section>
+
+  <section>
+    <h2>3. Upload</h2>
+    <label>Google OAuth client ID <input id="client" spellcheck="false" autocomplete="off" placeholder="…apps.googleusercontent.com"></label>
+    <p>Redirect address for Google Cloud: <code id="redirect"></code></p>
+    <button id="signin">Sign in to YouTube</button>
+    <p id="channel"></p>
+    <label class="switch"><input type="checkbox" role="switch" id="kids"> <span class="track" aria-hidden="true"></span> <span>Made for kids: <strong id="kidsstate">Off</strong></span></label>
+    <p>Uploads as <strong>Private</strong>. Subscribers are not notified.</p>
+    <button id="upload" disabled>Upload to YouTube</button>
+    <button id="stop" hidden>Stop</button>
+  </section>
+
+  <section>
+    <h2>Progress</h2>
+    <progress id="bar" max="1" value="0"></progress>
+    <pre id="log" aria-live="polite"></pre>
+    <button id="status" hidden>Check YouTube processing</button>
+  </section>
+</main>
+<script type="module" src="manager.js"></script>
+</html>
