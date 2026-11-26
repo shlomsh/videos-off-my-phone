@@ -11,7 +11,7 @@ Store draft created (26 Nov 2026). Item ID `imkmnploomooalicacgniiicblmfclka`; i
 
 Note for 1: the extension ID is pinned by `key` in manifest.json, and the Google sign-in client is tied to that ID. A Web Store item usually gets its own ID, so the sign-in setup may need a change for the store version.
 
-Last updated: 26 Nov 2026. Installed version: 0.11.0 (tested on stand-ins only; not yet used on the real account).
+Last updated: 26 Nov 2026. Live folder: 0.12.0 (reload in chrome://extensions to use it). In store review: 0.11.2.
 
 ## Built in 0.11.0 (26 Nov 2026)
 - [x] **Who can watch on YouTube** (canvas v32 to v35). Move asks each time: Private (chosen first), Unlisted or Public, with a warning for Public. The choice is stored with each upload. Once a video is on YouTube, the app only shows its visibility and never changes it.
