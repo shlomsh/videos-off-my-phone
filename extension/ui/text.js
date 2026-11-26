@@ -56,28 +56,35 @@ export const BACK = {
   bar: (n) => (n === 1 ? 'Put back in Choose.' : `${n} put back in Choose.`),
 };
 /**
- * Step 2 after a move (canvas v56, v55 boards E50, E51), when videos of this move stay in Google Photos:
- * `went` of this move went on to Delete; `shared` stay because they are in a shared album, `broke` because
- * their upload broke off (never checked from start to end). Gives { head, sub, note }, or null when none stays.
- * `note` is the footer's note on the page where all stay; where some went on, nextWords gives the note.
+ * Step 2 when videos stay in Google Photos (canvas v56/v57, boards E50, E51, E54): after a move, `went` of it
+ * went on to Delete and the rest stay; with no move (or after a reload), went is 0 and the counts are all of
+ * step 2. Why they stay: `shared` (in a shared album), `broke` (the upload broke off, never checked from start
+ * to end), `channel` (on another YouTube channel), `other` (any other reason: no sentence of its own).
+ * Gives { head, sub, note }, or null when none stays. `note` is the footer's note when none went on.
  */
-export function stayWords({ went = 0, shared = 0, broke = 0 }) {
-  const stay = shared + broke;
+export function stayWords({ went = 0, shared = 0, broke = 0, channel = 0, other = 0 }) {
+  const stay = shared + broke + channel + other;
   if (!(stay > 0)) return null;
   const one = stay === 1;
   const head = went > 0 ? `${went} went on to Delete. ${stay} ${one ? 'stays' : 'stay'} in Google Photos.`
     : one ? 'It is on YouTube. Google Photos keeps it.' : stay === 2 ? 'Both are on YouTube. Google Photos keeps them.' : `All ${stay} are on YouTube. Google Photos keeps them.`;
-  const brokeOff = (n) => (n === 1 ? 'The upload broke off, so it was never checked from start to end.' : 'The uploads broke off, so they were never checked from start to end.');
-  let sub;
-  if (!broke) {
-    sub = went > 0
-      ? (one ? 'The one that stays is in a shared album. Deleting it would take it out of that album for everyone.' : `The ${stay} that stay are in a shared album. Deleting them would take them out of that album for everyone.`)
-      : (one ? 'It is in a shared album. Deleting it would take it out of that album for everyone, so it does not go to Delete.' : 'They are in a shared album. Deleting them would take them out of that album for everyone, so they do not go to Delete.');
-  } else if (!shared) sub = brokeOff(broke);
-  else { // both reasons: each sentence counts its own
-    sub = `${shared === 1 ? '1 is in a shared album. Deleting it would take it out of that album for everyone.' : `${shared} are in a shared album. Deleting them would take them out of that album for everyone.`} ${broke === 1 ? 'For 1, the upload broke off, so it was never checked from start to end.' : `For ${broke}, the uploads broke off, so they were never checked from start to end.`}`;
+  const kinds = [shared, broke, channel].filter((n) => n > 0).length;
+  let sub = '';
+  if (kinds === 1 && !other) { // one reason for all of them
+    if (shared) {
+      sub = went > 0
+        ? (one ? 'The one that stays is in a shared album. Deleting it would take it out of that album for everyone.' : `The ${stay} that stay are in a shared album. Deleting them would take them out of that album for everyone.`)
+        : (one ? 'It is in a shared album. Deleting it would take it out of that album for everyone, so it does not go to Delete.' : 'They are in a shared album. Deleting them would take them out of that album for everyone, so they do not go to Delete.');
+    } else if (broke) sub = one ? 'The upload broke off, so it was never checked from start to end.' : 'The uploads broke off, so they were never checked from start to end.';
+    else sub = one ? 'It is on another YouTube channel. Switch channel to check it.' : 'They are on another YouTube channel. Switch channel to check them.';
+  } else { // several reasons (E54): each sentence counts its own
+    sub = [
+      shared ? `${shared} ${shared === 1 ? 'is in a shared album, so deleting it would take it' : 'are in a shared album, so deleting them would take them'} out of that album for everyone.` : '',
+      broke ? `${broke} ${broke === 1 ? 'was never checked from start to end, because its upload broke off' : 'were never checked from start to end, because their uploads broke off'}.` : '',
+      channel ? `${channel} ${channel === 1 ? 'is' : 'are'} on another YouTube channel.` : '',
+    ].filter(Boolean).join(' ');
   }
-  return { head, sub, note: went > 0 ? '' : one ? 'Nothing more to do for this one.' : `Nothing more to do for these ${stay}.` };
+  return { head, sub, note: went > 0 || channel ? '' : one ? 'Nothing more to do for this one.' : `Nothing more to do for these ${stay}.` };
 }
 /**
  * The way on from step 2 (v55): the main button never counts videos from earlier moves.
@@ -92,18 +99,18 @@ export function nextWords({ mine = 0, total = 0, stays = false }) {
 }
 /**
  * The Move dialog's yellow line (v55, board E52): `n` of the `of` ticked videos are in a shared album.
- * Gives { line, leave (the button's words) }, or null for none. Leaving all of them out leaves the box with nothing.
+ * Gives { line, leave (the button's words, or null when all of them are in one: v55a, E53) }, or null for none.
  */
 export function sharedWords(n, of) {
   if (!(n > 0) || !(of > 0)) return null;
   const one = n === 1;
   const rest = one ? 'It will be on YouTube too, but Google Photos keeps it, so it frees no space.' : 'They will be on YouTube too, but Google Photos keeps them, so they free no space.';
-  const leave = one ? 'Leave that 1 out' : `Leave those ${n} out`;
-  if (n >= of) return { line: `${one ? 'It is' : of === 2 ? 'Both are' : `All ${of} are`} in a shared album. ${rest}`, leave };
-  return { line: `${n} of these ${of} ${one ? 'is' : 'are'} in a shared album. ${rest}`, leave };
+  // All of them (E53): no Leave button, it would leave the box with nothing; Move stays on.
+  if (n >= of) return { line: `${one ? 'It is' : of === 2 ? 'Both are' : `All ${of} are`} in a shared album. ${rest}`, leave: null };
+  return { line: `${n} of these ${of} ${one ? 'is' : 'are'} in a shared album. ${rest}`, leave: one ? 'Leave it out' : `Leave those ${n} out` };
 }
 /** Step 2 tiles for a video that stays in Google Photos (v55): the same words as the Choose grid (v52), and why. */
-export const STAYS = { text: 'Stays in Google Photos', shared: 'Shared album. Also on YouTube.', broke: 'Not fully checked. Also on YouTube.' };
+export const STAYS = { text: 'Stays in Google Photos', shared: 'Shared album. Also on YouTube.', broke: 'Not fully checked. Also on YouTube.', also: 'Also on YouTube.', channel: 'On another YouTube channel.' };
 /** Step 3 while the videos chosen earlier are still being read: the grey button and its reason. */
 export const READING = { button: 'Delete from Google Photos', why: 'Still reading your videos.' };
 /** The words on the done page that follow how many videos it is about: it or them, and the iPhone's question. */
