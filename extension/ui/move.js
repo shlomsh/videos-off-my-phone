@@ -1,7 +1,7 @@
 // The Move dialog (canvas v32, v35, v50): who can watch them, and their title and description.
 // One box with three pages: the choice (E23/E24), "Title and description" (E45) and "Titles, one by one" (E46).
 import { h, icon } from './dom.js';
-import { gb, count } from './text.js';
+import { gb, count, sharedWords } from './text.js';
 import { titleFor, ownTitle, takenDay, originalLine, WORDS_MAX, TITLE_MAX } from '../lib/meta.js';
 
 /** The row's summary of the title and description setting, from drawn words. */
@@ -15,17 +15,29 @@ export function titleSummary({ mode, words, date, text }, first) {
 
 /**
  * Asks who can watch them, with the title row. Resolves to null (cancelled) or
- * { who, setting: { words, date }, titles: Map key -> final title, text }.
+ * { who, keys (the ones to move, in upload order), setting: { words, date }, titles: Map key -> final title, text }.
  * list: [{ key, fileName, size, timestamp }] in upload order; pic(key) gives a picture node.
+ * sub(list) and yes(option, n) give the words for the videos still in the box.
  * saved: the words and box state remembered from the last Move in this Chrome.
+ * shared (v55, board E52): a promise of the keys in a shared album (a Set), or null when they could not be read.
+ * The Move button waits for it, at most `hold` ms; a later answer still shows while the box is open.
+ * leave(keys): "Leave those N out" was pressed; they are out of this box, and the caller unticks them.
  */
-export function askMove({ sub, options, first = 'private', warn = {}, note = '', yes, group, list, pic, saved = {} }) {
+export function askMove({ sub, options, first = 'private', warn = {}, note = '', yes, group, list: all, pic, saved = {}, shared = null, hold = 5000, leave = () => {} }) {
   return new Promise((resolve) => {
+    const out = new Set(); // left out with "Leave those N out"
+    const now = () => all.filter((v) => !out.has(v.key));
+    let known = null; // the keys in a shared album, once read
+    let reading = !!shared;
+    let paint = () => {}; // redraws the line and the Move button on the open main page
+    if (shared) {
+      const timer = setTimeout(() => { reading = false; paint(); }, hold);
+      Promise.resolve(shared).catch(() => null).then((got) => { clearTimeout(timer); reading = false; known = got instanceof Set ? got : null; paint(); });
+    }
     let who = options.some((o) => o.value === first) ? first : options[0].value;
     // What Done last kept, and what the open page is changing.
     let set = { mode: 'pattern', words: String(saved.words ?? '').slice(0, WORDS_MAX), date: saved.date !== false, text: '', each: new Map() };
     let draft = null;
-    const one = list[0];
     const d = h('dialog', { class: 'dlg', 'aria-labelledby': 'dlg-title', 'aria-describedby': 'dlg-sub' });
     const box = h('div', { class: 'in' });
     d.append(box);
@@ -38,7 +50,21 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
     const head = (title, text) => h('div', { class: 'stack g4' }, h('h2', { id: 'dlg-title' }, title), h('span', { id: 'dlg-sub', class: 'mute' }, text));
 
     function mainPage() {
-      const go = h('button', { type: 'button', class: 'btn', 'data-f': 'dlg-yes', onclick: () => finish() });
+      const list = now();
+      const one = list[0];
+      const go = h('button', { type: 'button', class: 'btn', 'data-f': 'dlg-yes', disabled: reading || !list.length, 'aria-busy': reading ? 'true' : null, onclick: () => finish() });
+      // The yellow line about shared albums (v55): a live region from the start, as the answer may come late.
+      const box2 = h('div', { class: 'shbox', role: 'status', 'data-f': 'shared' });
+      paint = () => {
+        if (page !== 'main') return;
+        const left = now();
+        const inAlbum = known ? left.filter((v) => known.has(v.key)) : [];
+        const w = sharedWords(inAlbum.length, left.length);
+        box2.replaceChildren(...(w ? [h('p', { class: 'vwarn' }, icon('held', 20), h('span', { class: 'stack' }, h('span', { 'data-f': 'shline' }, w.line),
+          h('span', null, h('button', { type: 'button', class: 'btn sec sml', 'data-f': 'leaveout', onclick: () => leaveOut(inAlbum.map((v) => v.key)) }, w.leave))))] : []));
+        go.disabled = reading || !left.length;
+        if (reading) go.setAttribute('aria-busy', 'true'); else go.removeAttribute('aria-busy');
+      };
       const tip = h('p', { class: 'vwarn', role: 'note' }, icon('info', 20), h('span'));
       const rows = options.map((o) => h('label', { class: 'vopt', 'data-v': o.value },
         h('input', { type: 'radio', name: 'dlg-choice', value: o.value, checked: o.value === who, onchange: (e) => { if (e.target.checked) pickWho(o.value); } }),
@@ -48,13 +74,15 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
         for (const r of rows) r.classList.toggle('on', r.dataset.v === v);
         tip.hidden = !warn[v];
         tip.lastChild.textContent = warn[v] ?? '';
-        go.textContent = yes(options.find((o) => o.value === v));
+        go.textContent = yes(options.find((o) => o.value === v), list.length);
       };
       pickWho(who);
+      queueMicrotask(paint);
       return [
-        head('Who can watch them on YouTube?', sub),
+        head('Who can watch them on YouTube?', typeof sub === 'function' ? sub(list) : sub),
         h('div', { class: 'vlist', role: 'radiogroup', 'aria-label': group }, rows),
         tip,
+        box2,
         h('div', { class: 'trow' }, h('span', { class: 'stack g4' }, h('strong', null, 'Title and description'), h('span', { class: 'sm mute', 'data-f': 'tsum' }, titleSummary(set, one))),
           h('button', { type: 'button', class: 'btn sec sml', 'data-f': 'tchange', onclick: () => { draft = { ...set, each: new Map(set.each) }; show('pat', 'input[type=text]'); } }, 'Change')),
         note ? h('p', { class: 'sm mute' }, note) : null,
@@ -63,6 +91,8 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
     }
 
     function patPage() {
+      const list = now();
+      const one = list[0];
       const ex = h('strong', null, titleFor(draft, one));
       const redo = () => { ex.textContent = titleFor(draft, one); };
       return [
@@ -83,6 +113,7 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
 
     function eachPage() {
       // Each starts with the date taken (or, without one, the file name).
+      const list = now();
       const rows = list.map((v) => {
         if (!draft.each.has(v.key)) draft.each.set(v.key, titleFor({ words: '', date: true }, v));
         const day = takenDay(v.timestamp);
@@ -109,14 +140,23 @@ export function askMove({ sub, options, first = 'private', warn = {}, note = '',
     d.onkeydown = (e) => { if (e.key === 'Escape') esc(e); };
     d.oncancel = esc;
 
+    // "Leave those N out": they leave this box and are unticked; the counts follow, and the box stays open.
+    // When that leaves nothing, there is no line and the Move button is off; Cancel has the keyboard.
+    function leaveOut(keys) {
+      for (const k of keys) out.add(k);
+      leave(keys);
+      show('main', now().length ? '[data-f=dlg-yes]' : '[data-f=dlg-no]');
+    }
     let answer = null;
     function finish() {
+      const list = now();
+      if (!list.length || reading) return;
       const titles = new Map(list.map((v) => [v.key, set.mode === 'each' ? ownTitle(set.each.get(v.key) ?? titleFor({ words: '', date: true }, v), v.fileName) : titleFor(set, v)]));
-      answer = { who, setting: { words: set.words, date: set.date }, titles, text: set.text };
+      answer = { who, keys: list.map((v) => v.key), setting: { words: set.words, date: set.date }, titles, text: set.text };
       d.close('yes');
     }
     d.onclick = (e) => { if (e.target === d) d.close(''); };
-    d.onclose = () => { resolve(d.returnValue === 'yes' ? answer : null); d.remove(); };
+    d.onclose = () => { paint = () => {}; resolve(d.returnValue === 'yes' ? answer : null); d.remove(); };
     show('main');
     document.querySelector('.ge').append(d);
     d.showModal();

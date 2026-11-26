@@ -8,7 +8,7 @@ import { CLIENT_ID, OPEN_SOURCE, PRIVACY_URL, STORE_BUILD } from './config.js';
 import { askRemove, askFinish } from './ui/account.js';
 import { askMove as askMoveDialog } from './ui/move.js';
 import { h, icon as mark, button, link, picture, broken, draw, ask, askDelete, askDeleteMany, askChoice, ring } from './ui/dom.js';
-import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED, BACK, START_INTRO, START_STEPS } from './ui/text.js';
+import { gb, length, clock, day, count, sentLine, timeLeft, plainReason, plainError, isoLength, copiesStay, onlyCopies, PLAYER, READING, doneWords, initial, stoppedWords, STOPPED, BACK, START_INTRO, START_STEPS, stayWords, nextWords, sharedWords, STAYS } from './ui/text.js';
 import { allowPlayer, makePlayer, playInWindow, whyNotPlaying, makeClip, endClip } from './ui/player.js';
 import { rowState, placeOf, shownPlace, gridPicks, stepTwoWords, gate, canCopy, factsFor, differs, stopTally } from './ui/rows.js';
 import { VIS, visName, chosenVis, visibility } from './lib/gate.js';
@@ -459,6 +459,10 @@ const bareRows = (all = everything()) => all.filter((x) => decisionOf(x)).sort(b
 const onYouTube = (all = everything()) => all.filter((x) => x.p === 'youtube').sort(bySize);
 /** Step 3: what is on YouTube first, then what has no copy. */
 const delRows = (all = everything()) => [...onYouTube(all), ...bareRows(all)];
+/** What step 3 holds, as its pill counts it. */
+const delCount = (all = everything()) => onYouTube(all).length + [...marks].filter(([k]) => !records.has(k)).length;
+/** The videos of the last move in this visit (v55): the last run, and what it was moved with before a Stop. Not kept over a reload. */
+const thisMove = () => new Set([...runKeys, ...(stopBatch?.keys ?? [])]);
 const moved = (all = everything()) => all.filter((x) => x.v.record?.state === 'uploaded');
 const toCopy = (all = everything()) => all.filter((x) => x.p === 'choose' && !decisionOf(x));
 function pile(all = everything()) { // step 1
@@ -595,25 +599,31 @@ async function askMove(only = null, before = null) {
   const list = only ?? picked().move;
   const keys = list.map((x) => x.v.key);
   if (!keys.length) return;
-  const size = sum(list);
   // In the order they are sent, so the example is the first one to go.
   const order = [...list].sort(sort === 'new' ? (a, b) => (b.v.timestamp ?? 0) - (a.v.timestamp ?? 0) : bySize).map((x) => x.v);
   dialog = true;
   let got;
+  // v55 (E52): which of them are in a shared album, read as the upload reads them. The Move button waits for it a little.
+  const albums = readShared(order.map((v) => v.key));
   try {
     const saved = (await chrome.storage.local.get(TITLE_SET).catch(() => ({})))[TITLE_SET] ?? {};
     got = await askMoveDialog({
-      sub: `${count(keys.length)}, ${gb(size)}.`,
+      sub: (left) => `${count(left.length)}, ${gb(left.reduce((t, v) => t + (v.size ?? 0), 0))}.`,
       options: WHO.map((o) => ({ ...o, name: visName(o.value) })),
       first: 'private', // never remembered
       warn: { public: 'Anyone on the internet can find and watch them. Home videos often show people, faces and places.' },
       note: 'You choose each time you move. Once on YouTube, it cannot be changed here.',
-      yes: (o) => `Move ${keys.length} as ${o.name}`,
+      yes: (o, n) => `Move ${n} as ${o.name}`,
       group: 'Who can watch them',
       list: order, pic: thumbOf, saved,
+      shared: albums.done, hold: SHARED_WAIT,
+      // "Leave those N out": unticked in Choose, and not moved.
+      leave: (out) => { for (const k of out) sel.delete(k); log(`${count(out.length)} in a shared album left out of this move.`); say(`${count(out.length)} left out.`); render(); },
     });
-  } finally { dialog = false; }
+  } finally { dialog = false; albums.stop(); }
   if (!got || run || (busy && busy.kind !== 'list')) return;
+  keys.splice(0, keys.length, ...keys.filter((k) => got.keys.includes(k))); // only what is still in the box moves
+  if (!keys.length) return;
   if (before && !await before()) return;
   const who = got.who;
   // Remembered in this Chrome for the next Move: the words and the box, nothing else.
@@ -623,6 +633,30 @@ async function askMove(only = null, before = null) {
   startMove(keys);
 }
 const TITLE_SET = 'titleSetting'; // the last words and "Add the date taken" box at Move
+const SHARED_WAIT = 5000; // the longest the Move button waits for the shared albums to be read
+/**
+ * Reads the videos' details from Google Photos with the call the upload makes, 3 at a time, kept in `details`
+ * (v55, board E52). `done` gives the keys in a shared album, or null when any could not be read (then no line).
+ */
+function readShared(keys) {
+  let stop = false; let i = 0;
+  const found = new Set();
+  const done = (async () => {
+    const tabId = await photosTab();
+    const one = async () => {
+      while (!stop && i < keys.length) {
+        const k = keys[i++];
+        let d = details.get(k);
+        if (!d) { d = await photos.getDetails(tabId, k); details.set(k, d); }
+        if (!Array.isArray(d?.sharedAlbums)) throw new Error('shared albums unknown');
+        if (d.sharedAlbums.length) found.add(k);
+      }
+    };
+    await Promise.all([one(), one(), one()]);
+    return stop ? null : found;
+  })().catch((e) => { stop = true; log(`Shared albums not read: ${e?.message ?? e}`); return null; });
+  return { done, stop: () => { stop = true; } };
+}
 const pct = () => (progress?.total ? Math.floor(Math.min(1, progress.bytes / progress.total) * 100) : 0);
 
 // ---- ask YouTube what it has. The last answers stay until the new ones are here.
@@ -1210,7 +1244,7 @@ function paintBar(all) {
   const n1 = toCopy(all).filter((x) => canCopy(x.st.s)).length;
   const rows2 = moveRows(all);
   const n2 = needs(rows2);
-  const n3 = onYouTube(all).length + [...marks].filter(([k]) => !records.has(k)).length;
+  const n3 = delCount(all);
   const subs = [
     busy?.kind === 'list' ? `${n1} so far` : started || n1 ? (n1 ? count(n1) : 'Nothing left') : 'Not read yet',
     run ? (want ? 'Paused' : `${pct()}%`) : finding ? `Finding ${finding.keys.length}` : n2 ? `${n2} ${n2 === 1 ? 'needs' : 'need'} you` : askFailed ? 'Not known now' : waiting(all).length ? 'Stopped' : rows2.some(withYouTube) ? 'YouTube working' : 'Nothing to do',
@@ -1589,6 +1623,9 @@ const withYouTube = (x) => x.p === 'working' && (x.st.s === 'proc' || x.st.s ===
 const ytAt = (x) => (x.v.record?.id && best.get(x.v.record.id)) || null;
 /** Looked for on the channel in this visit, and not found there (E37, E38). */
 const lostOnYT = (x) => x.st.s === 'again' && notFound.has(x.v.key);
+/** Why it stays in Google Photos: in a shared album, or its upload broke off and it was never checked from start to end. */
+const isShared = (x) => x.p === 'stays' && /shared album/.test(x.st.ax ?? '');
+const isBroke = (x) => x.p === 'stays' && !isShared(x) && /start to end/.test(x.st.ax ?? '');
 /** The one state under a picture. */
 function caption(x) {
   const { st, p, v } = x;
@@ -1605,7 +1642,11 @@ function caption(x) {
   if (p === 'lost') return out('fail', 'It did not arrive', 'c-stop');
   if (p === 'moving') return part === undefined ? out('up', 'Waiting', 'mute') : st.s === 'pause' ? out('up', `Paused at ${n}%`, 'c-wait', n) : out('up', `Uploading ${n}%`, 'c-go', n);
   if (st.s === 'again') return out('info', 'Moved before', 'mute');
-  if (p === 'stays') return /shared album/.test(st.ax) ? out('held', 'Stays: shared album', 'mute') : out('info', /another channel/i.test(st.word) ? 'Stays: another channel' : 'Stays: not fully checked', 'mute');
+  if (p === 'stays') {
+    if (/another channel/i.test(st.word)) return out('info', 'Stays: another channel', 'mute');
+    // v55: the same words as the Choose grid (v52), with the reason under them.
+    return isShared(x) ? out('held', STAYS.text, 'mute', undefined, { sub: STAYS.shared, wrap: true }) : out('info', STAYS.text, 'mute', undefined, isBroke(x) ? { sub: STAYS.broke, wrap: true } : {});
+  }
   if (withYouTube(x)) {
     // A known % fills the bar; without one, the bar is striped and the line counts up from the upload.
     const at = ytAt(x);
@@ -1615,10 +1656,16 @@ function caption(x) {
   if (st.s === 'sent') return askFailed && !asking ? out('info', 'Not known now', 'mute') : out('clock', 'YouTube is working', 'c-yt');
   return details.has(v.key) && !details.get(v.key) && !loading ? out('info', 'Not known now', 'mute') : out('clock', 'Comparing…', 'mute');
 }
-/** The next step: the videos that can be deleted now, or choosing more. */
-function nextFoot(all, left, { sec = false } = {}) {
-  const n = delRows(all).length;
-  return n ? foot(left, 'todelete', `Next: delete ${n}`, () => go(3)) : foot(left, 'tochoose', 'Choose videos', () => go(1), { sec });
+/**
+ * The next step: Delete, or choosing more. The main button never counts videos from earlier moves (v55):
+ * what this move sent to Delete, or "Go to Delete" with no number. When nothing from this move is there,
+ * the way to step 3 is the quiet "Go to Delete: N from before". `text` is the footer's note.
+ */
+function nextFoot(all, text, { sec = false, stays = false } = {}) {
+  const mv = thisMove();
+  const w = nextWords({ mine: onYouTube(all).filter((x) => mv.has(x.v.key)).length, total: delCount(all), stays });
+  const left = [note([text, w.note].filter(Boolean).join(' ')), w.quiet ? button('tobefore', 'txt', w.quiet, () => go(3)) : null];
+  return w.main === 'delete' ? foot(left, 'todelete', w.text, () => go(3)) : foot(left, 'tochoose', w.text, () => go(1), { sec });
 }
 /** "Checked 20 seconds ago. Check now": from the last real answer, and redrawn each second while shown. */
 function liveLine() {
@@ -1701,7 +1748,7 @@ function moveBody(all) {
   if (seen) return pairView(seen);
   if (notice && !run && !lastRun?.halted) return noticeView();
   if (finding && !run) return findView(all);
-  if (!list.length) return calm('quiet', 'check', 'c-safe', 'Nothing needs you here.', 'What you move shows its progress here. What passes every check goes to Delete by itself.', nextFoot(all, note(goneNote)));
+  if (!list.length) return calm('quiet', 'check', 'c-safe', 'Nothing needs you here.', 'What you move shows its progress here. What passes every check goes to Delete by itself.', nextFoot(all, goneNote));
   const of = (p) => list.filter((x) => x.p === p);
   const withYT = list.filter(withYouTube);
   const work_ = withYT.length;
@@ -1737,13 +1784,19 @@ function moveBody(all) {
     const look = of('look').length;
     const open = of('working').length;
     const nf = list.filter(lostOnYT).length; // looked for on the channel in this visit, not found (E37)
+    // v55 (E50, E51): what of this move stays in Google Photos, and why; and what of it went on to Delete.
+    const mv = thisMove();
+    const kept = all.filter((x) => mv.has(x.v.key) && x.p === 'stays');
+    const sw = stayWords({ went: onYouTube(all).filter((x) => mv.has(x.v.key)).length, shared: kept.filter(isShared).length, broke: kept.filter(isBroke).length });
     v = nf ? { head: `${foundHere} found on YouTube. ${nf} ${nf === 1 ? 'was' : 'were'} not found.`, sub: 'The found ones are back where they were.' }
       : lost && ended ? { head: `Uploading is finished. ${lost} did not arrive.`, sub: work_ ? go_.replace('They', 'The others') : '' }
       : work_ ? { head: `YouTube is working on ${count(work_)}.`, sub: work_ === 1 ? 'It moves on to Delete by itself.' : go_ }
         : open ? { head: asking ? 'Asking YouTube…' : 'Comparing the copies…', sub: '' }
           : look + lost ? { head: `${count(look + lost)} ${look + lost === 1 ? 'needs' : 'need'} you.`, sub: '' }
-            : { head: 'Nothing needs you here.', sub: wait.length ? '' : `${count(list.length)} ${list.length === 1 ? 'stays' : 'stay'} in Google Photos.` };
-    v.foot = photosOpen === false && open ? foot(note(later), 'photos3', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' }) : nextFoot(all, note(nf ? [goneNote, 'You can close this page and come back later.'].filter(Boolean).join(' ') : later), { sec: !!work_ && !nf });
+            : sw ? { head: sw.head, sub: sw.sub, stays: true }
+              : { head: 'Nothing needs you here.', sub: wait.length ? '' : `${count(list.length)} ${list.length === 1 ? 'stays' : 'stay'} in Google Photos.` };
+    v.foot = photosOpen === false && open ? foot(note(later), 'photos3', 'Open Google Photos', openPhotos, { warn: 'No Google Photos tab is open.' })
+      : nextFoot(all, v.stays ? [later, sw.note].filter(Boolean).join(' ') : nf ? [goneNote, 'You can close this page and come back later.'].filter(Boolean).join(' ') : later, { sec: !!work_ && !nf, stays: !!v.stays });
     if (work_) {
       v.live = liveLine();
       if (withYT.some((x) => isSlow(x.v.record?.at))) v.slow = SLOW_NOTE;
@@ -1779,7 +1832,7 @@ function findView(all) {
         h('div', { class: 'prog', role: 'progressbar', 'aria-label': 'Looked for', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(n) }, h('span', { style: `width:${n}%` })),
         h('span', { class: 'mute sm' }, `${f.at} of ${f.keys.length} looked for`))),
     h('ul', { class: 'grid five5', 'data-key': 'fgrid', 'data-deep': true }, list.map(moveTile))),
-    nextFoot(all, note('Nothing is uploaded or deleted while it looks.'), { sec: true }),
+    nextFoot(all, 'Nothing is uploaded or deleted while it looks.', { sec: true }),
   ];
 }
 function moveTile(x) {
@@ -1787,9 +1840,9 @@ function moveTile(x) {
   const c = caption(x);
   // Keyed down to the picture, so a striped bar keeps moving while the line under it counts.
   return h('li', { 'data-key': v.key, 'data-deep': true }, h('div', { class: 'vid', 'data-key': 'vid', 'data-deep': true },
-    h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': `${c.text}. Look at both copies of ${v.fileName ?? 'the video'}`, onclick: () => pair(v.key) }, thumbOf(v.key),
+    h('button', { type: 'button', class: 'pic', 'data-f': `watch-${v.key}`, 'aria-label': `${c.text}.${c.wrap ? ` ${c.sub}` : ''} Look at both copies of ${v.fileName ?? 'the video'}`, onclick: () => pair(v.key) }, thumbOf(v.key),
       c.part === undefined ? null : h('span', { class: `pb${c.striped ? ' ind' : ''}`, 'aria-hidden': 'true' }, h('i', { style: `width:${c.part}%` }))),
-    h('span', { class: 'cap' }, h('b', { class: c.tone }, mark(c.kind, 16), c.text), c.sub ? h('span', { class: 'tsub' }, c.sub) : null)));
+    h('span', { class: 'cap' }, h('b', { class: c.tone }, mark(c.kind, 16), c.text), c.sub ? h('span', { class: c.wrap ? 'tsub wrap' : 'tsub' }, c.sub) : null)));
 }
 
 // ---- both copies of one video, whenever the user wants
