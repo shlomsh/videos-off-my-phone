@@ -7,11 +7,23 @@
 <meta name="description" content="Free and open source Chrome extension. Move big videos from Google Photos to your own YouTube channel, which doesn't use your Google storage, then delete the originals.">
 <meta name="google-site-verification" content="bhsLVBUsEJb_DQ46_Z6qRp7a0QG3tjc0SAX0w2Odf4E">
 <meta name="theme-color" content="#f8fafd">
+<link rel="canonical" href="https://videos-off-my-phone.vercel.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Videos Off My Phone">
+<meta property="og:title" content="Videos Off My Phone: free up storage for Google Photos">
+<meta property="og:description" content="Free and open source Chrome extension. Move big videos from Google Photos to your own YouTube channel, which doesn&#x27;t use your Google storage, then delete the originals.">
+<meta property="og:url" content="https://videos-off-my-phone.vercel.app/">
+<meta property="og:image" content="https://videos-off-my-phone.vercel.app/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The phone’s warnings: Couldn’t back up your phone. Can’t install the update. Storage almost full.">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://videos-off-my-phone.vercel.app/#site","url":"https://videos-off-my-phone.vercel.app/","name":"Videos Off My Phone"},{"@type":"SoftwareApplication","name":"Videos Off My Phone","url":"https://videos-off-my-phone.vercel.app/","description":"Free and open source Chrome extension. Move big videos from Google Photos to your own YouTube channel, which doesn't use your Google storage, then delete the originals.","applicationCategory":"BrowserApplication","operatingSystem":"Chrome","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","sameAs":["https://github.com/shlomsh/videos-off-my-phone"],"image":"https://videos-off-my-phone.vercel.app/og.jpg","author":{"@type":"Person","name":"Shlomi Shemesh","url":"https://github.com/shlomsh"}}]}</script>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="preload" href="/atlas.webp" as="image" type="image/webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: one fixed stage behind everything. The story follows the owner's own telling. The phone nags, the nags press
    the videos flat into the storage bar, one more minute fills it, an hour of goodbyes buys a sliver, and then nothing
@@ -32,10 +44,10 @@
 :root.paper{ --ground:var(--paper) }
 :root.view{ --ground:#0f1012; --fg:var(--paper-text); --fg-strong:#fff; --fg-mute:var(--paper-mute); --link:var(--go-dark); --clockc:var(--amber); color-scheme:dark }
 *{box-sizing:border-box}
-html{scroll-behavior:auto}
+html{scroll-padding-top:72px}
 body{margin:0;background:var(--surface);color:var(--fg);font-family:var(--text);font-size:18px;line-height:1.5;overflow-x:hidden}
 a{color:var(--link)}
-:focus-visible{outline:3px solid var(--amber);outline-offset:3px;border-radius:6px}
+:focus-visible{outline:3px solid var(--link);outline-offset:3px;border-radius:6px}
 #stage{position:fixed;inset:0 0 auto;width:100%;height:100vh;height:100lvh;z-index:0;display:block}
 
 .bar{position:fixed;inset:0 0 auto;z-index:6;display:flex;align-items:center;gap:8px 20px;
@@ -206,7 +218,7 @@ li.kept i{color:var(--safe)}
 .zeros{list-style:none;margin:3vh 0 1vh;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:28px 2vw}
 .zeros li{display:grid;gap:10px;align-content:start}
 .zeros b{font-family:var(--display);font-stretch:150%;font-weight:260;font-size:clamp(84px,15vw,250px);line-height:.78}
-.zeros li:nth-child(1) b{color:var(--blue)} .zeros li:nth-child(2) b{color:var(--green)} .zeros li:nth-child(3) b{color:#F29900}
+.zeros li:nth-child(1) b{color:var(--blue)} .zeros li:nth-child(2) b{color:var(--green)} .zeros li:nth-child(3) b{color:#B98000}   /* a darker yellow: 3.4:1 on white, enough for big type */
 .zeros li:nth-child(4) b{color:var(--coral)} .zeros li:nth-child(5) b{color:var(--pink)}
 .zeros li>span{font-size:clamp(16px,1.6vw,23px);font-weight:600;color:#0e0f12}
 .plain{margin:0;max-width:46ch;font-size:19px;line-height:1.45;color:var(--ink-mute)}
@@ -217,9 +229,10 @@ li.kept i{color:var(--safe)}
 .btn[aria-disabled=true]{cursor:default}
 .know{padding-bottom:10vh;font-size:16px;color:var(--ink-mute)}
 .know ul{margin:10px 0 0;padding-left:20px;display:grid;gap:6px;max-width:80ch}
-.know strong{color:#0e0f12;font-size:18px}
-.signin{padding-top:0;margin-top:-4vh}
-.signin h2{margin:0 0 6px;color:#0e0f12;font-size:18px}
+.know strong,.know .kh{color:#0e0f12;font-size:18px}
+.know .kh{margin:0;font-weight:600;line-height:1.5}
+.signin{margin-top:-4vh}
+.signin h2{margin:0 0 6px;color:#0e0f12;font-size:18px;font-weight:600}
 .signin p{max-width:80ch;margin:8px 0}.signin ul{margin:6px 0}.signin code{font-size:.92em;color:#0e0f12}
 footer{border-top:1px solid var(--line);padding-block:22px 40px;font-size:14px;color:var(--ink-mute)}
 footer .wrap{display:flex;gap:8px 24px;flex-wrap:wrap}
@@ -273,7 +286,7 @@ footer a{color:var(--go)}
     <div id="nags">
       <p class="nag" id="n1"><span class="meta"><b>Backup</b><i>now</i></span><span class="msg">Couldn’t back up your phone.</span><span class="rcpt shot" style="--tilt:3deg" aria-hidden="true"><img class="ph" src="alert-not-backed-up.webp" alt="" width="600" height="276"><span class="hd">SETTINGS<i>now</i></span><b>iPhone Not Backed Up</b><span class="bd">It’s been 9 weeks since the last backup for this iPhone.</span></span><span class="rcpt two shot" style="--tilt:-2.5deg" aria-hidden="true"><img class="ph" src="alert-whatsapp-backup-failed.webp" alt="" width="600" height="239"><span class="hd">WHATSAPP</span><b><span class="nw">WhatsApp: </span>Backup failed</b><span class="bd">Not enough iCloud storage.</span></span></p>
       <p class="nag" id="n2"><span class="meta"><b>Software update · Not enough storage</b><i>now</i></span><span class="msg">Can’t install the update.</span><span class="rcpt alert tall" style="--tilt:-2.5deg" aria-hidden="true"><b>Unable to Install Update</b><span class="bd">An error occurred installing iOS 27.</span><span class="bt stack"><span>Retry</span><span>Remind Me Later</span></span></span></p>
-      <p class="nag" id="n3"><span class="meta"><b>Storage</b><i>now</i></span><span class="msg">Storage almost full.</span><span class="rcpt icl" style="--tilt:2deg" aria-hidden="true"><span class="hd">ICLOUD</span><b><span class="nw">iCloud: </span>Almost Full<em>4.94 of 5 GB</em></b><span class="meter"><i></i></span><span class="bt one"><span>Upgrade to 50 GB for ₪3.90/month</span></span></span></p>
+      <p class="nag" id="n3"><span class="meta"><b>Storage</b><i>now</i></span><span class="msg">Storage almost full.</span><span class="rcpt icl" style="--tilt:2deg" aria-hidden="true"><span class="hd">ICLOUD</span><b><span class="nw">iCloud: </span>Almost Full<em>4.94 of 5 GB</em></b><span class="meter"><i></i></span><span class="bt one"><span>Upgrade to 50 GB for $0.99/month</span></span></span></p>
     </div>
   </section>
 
@@ -346,7 +359,7 @@ footer a{color:var(--go)}
 
 <div id="screen" class="say">
   <button id="play" type="button" aria-label="Play the demo video"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M9 4v32l28-16z" fill="#121417"/></svg></button>
-  <div class="cap" id="cap">Tick the big ones.</div>
+  <div class="cap" id="cap" aria-live="polite">Tick the big ones.</div>
 </div>
 <p class="under say" id="under">About a minute. Silent, with captions.</p>
 
@@ -364,11 +377,11 @@ footer a{color:var(--go)}
     <p class="plain">Your videos go straight from Google Photos to your own YouTube channel, in your own browser. The code is open (MIT), so anyone can read every line.</p>
     <div class="cta">
       <a class="btn" href="https://github.com/shlomsh/videos-off-my-phone">Read the code</a>
-      <span class="btn sec" role="button" aria-disabled="true">Add to Chrome: coming soon</span>
+      <span class="btn sec">Add to Chrome: coming soon</span>
     </div>
   </div>
   <div class="wrap know">
-    <strong>Good to know</strong>
+    <h2 class="kh">Good to know</h2>
     <ul>
       <li>Nothing is deleted without your yes. Deleted originals wait in the Google Photos trash for 30 days.</li>
       <li>You choose who can watch each video: only you (private), anyone with the link (unlisted), or everyone.</li>
@@ -621,7 +634,7 @@ footer a{color:var(--go)}
     const view = up > .5 && !turn && ev <= 0; root.classList.toggle('view', view); sp.dk.t = view ? 100 : 0;   // the hour of goodbyes is spent in the dark viewer
     // 4. The videos leave the bar and build the screen.
     const Gt = q(clamp((ev - .34) / .66)), vo = smooth(.82, 1, Gt) * (1 - smooth(...BEAT.video.fade, into(sVideo)));
-    set('watch', vo); set('screen', vo); set('under', vo); $('screen').classList.toggle('on', vo > .6);
+    set('watch', vo); set('screen', vo); set('under', vo); $('screen').classList.toggle('on', vo > .6); $('screen').inert = vo <= .6;   // not focusable while hidden
     // 5. Storage again. The screen shrinks to a small picture, the bar comes back to the middle, and it is empty.
     const Sm = q(smooth(0, .7, ef)), sf = smooth(.3, .62, ef) * (1 - smooth(.02, .25, eg));
     set('kick2', sf); set('ytlabel', sf * smooth(.9, 1, Sm)); set('freeline', sf * smooth(...BEAT.free.line, into(sFree))); set('legend', Math.max(lg, sf));

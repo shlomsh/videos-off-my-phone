@@ -1,0 +1,32 @@
+# Videos Off My Phone
+
+> Free and open source Chrome extension. Move big videos from Google Photos to your own YouTube channel, which doesn't use your Google storage, then delete the originals.
+
+Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. It checks every copy, then deletes the originals after your yes. Your phone and your Google storage get the space back.
+
+The app runs only in your own Chrome. It has no server, no account with us, no ads, no analytics and no tracking. Your videos go straight from Google Photos to your own YouTube channel through your browser.
+
+Made by Shlomi Shemesh, an independent developer. Google Photos and YouTube are trademarks of Google LLC. This extension is not made or endorsed by Google. Add to Chrome: coming soon.
+
+## Good to know
+
+- Nothing is deleted without your yes. Deleted originals wait in the Google Photos trash for 30 days.
+- You choose who can watch each video: only you (private), anyone with the link (unlisted), or everyone.
+- Every copy is checked against the original: size, resolution, length and date.
+- Your phone gets the space back when Google Photos on your phone removes the deleted videos. The app shows the taps on an iPhone. Your phone may keep them in Recently Deleted for 30 days.
+- Videos in shared albums stay in Google Photos and are never deleted, so they free no space.
+- YouTube does not give the original file back. Keep another copy of anything you can’t replace.
+- YouTube allows about 100 uploads a day for the whole app, shared by all users.
+- Google shows an “unverified app” warning at sign-in until Google’s verification finishes.
+
+## Questions
+
+- Does YouTube really not use my Google storage? Google’s own page on how storage works lists Gmail, Google Drive and Google Photos as sharing your storage. YouTube is not on that list. Google can change its rules, and YouTube has daily upload limits.
+- Is the quality the same? The original file is uploaded, in full quality. YouTube makes its own versions to play, and it does not give back the original file, so keep anything you may need to edit later.
+- What does it cost? Nothing. It is free and open source.
+
+## Pages
+
+- [How it works](https://videos-off-my-phone.vercel.app/how-it-works): the steps, what the app uses, and questions
+- [Privacy policy](https://videos-off-my-phone.vercel.app/privacy): what the app reads, from where, and why
+- [Source code](https://github.com/shlomsh/videos-off-my-phone): MIT licence

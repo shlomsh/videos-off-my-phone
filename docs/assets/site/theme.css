@@ -12,7 +12,7 @@
   color-scheme:light;
 }
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:72px}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--text);font-size:18px;line-height:1.5}
 a{color:var(--link)}
 :focus-visible{outline:3px solid var(--link);outline-offset:3px;border-radius:6px}
@@ -47,6 +47,9 @@ footer a{color:var(--link)}
 
 @media (max-width:700px){
   body{font-size:17px}
+  /* The bar on a phone: brand and pill on top, the quiet links on a second row */
+  .bar{flex-wrap:wrap;row-gap:4px} .bar .soon{order:1}
+  .bar::after{content:"";order:1;flex-basis:100%;height:0} .bar a.quiet{order:2;font-size:15px;padding-block:6px}
   .soon .wide{display:none}
   .brand{font-size:15px}
 }

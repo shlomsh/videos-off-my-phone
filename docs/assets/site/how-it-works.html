@@ -6,9 +6,22 @@
 <title>How it works: Videos Off My Phone</title>
 <meta name="description" content="Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. It checks every copy, then deletes the originals after your yes. Your phone and your Google storage get the space back.">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#f8fafd">
+<link rel="canonical" href="https://videos-off-my-phone.vercel.app/how-it-works">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Videos Off My Phone">
+<meta property="og:title" content="How it works: Videos Off My Phone">
+<meta property="og:description" content="Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. It checks every copy, then deletes the originals after your yes. Your phone and your Google storage get the space back.">
+<meta property="og:url" content="https://videos-off-my-phone.vercel.app/how-it-works">
+<meta property="og:image" content="https://videos-off-my-phone.vercel.app/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The phone’s warnings: Couldn’t back up your phone. Can’t install the update. Storage almost full.">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Does YouTube really not use my Google storage?","acceptedAnswer":{"@type":"Answer","text":"Google’s own page on how storage works lists Gmail, Google Drive and Google Photos as sharing your storage. YouTube is not on that list. Google can change its rules, and YouTube has daily upload limits."}},{"@type":"Question","name":"Is the quality the same?","acceptedAnswer":{"@type":"Answer","text":"The original file is uploaded, in full quality. YouTube makes its own versions to play, and it does not give back the original file, so keep anything you may need to edit later."}},{"@type":"Question","name":"When does my phone get the space back?","acceptedAnswer":{"@type":"Answer","text":"When Google Photos on your phone removes the deleted video. The app shows the taps on an iPhone. Your phone may keep it in Recently Deleted for 30 days."}},{"@type":"Question","name":"What does it cost?","acceptedAnswer":{"@type":"Answer","text":"Nothing. It is free and open source."}}]}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/theme.css">
 <script>/* The steps land one after another as you scroll. Without the script, or with reduced motion, they are simply there. */
 if ('IntersectionObserver' in window && matchMedia('(prefers-reduced-motion: no-preference)').matches) document.documentElement.classList.add('land');</script>
@@ -64,10 +77,6 @@ code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.86em
 .last{padding-bottom:clamp(64px,12vh,128px)}
 
 @media (max-width:700px){
-  /* The shared bar has four things in it here: brand and pill on top, the quiet links under them */
-  .bar{flex-wrap:wrap}
-  .bar a.quiet{order:2;font-size:15px}
-  .soon{order:1}
   .slab{display:flow-root;border-radius:22px;padding:18px 20px 22px}
   .n{float:right;font-size:clamp(150px,56vw,240px);margin:0 -.02em 0 14px}
   .say{display:block;max-width:none}
