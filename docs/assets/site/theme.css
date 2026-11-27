@@ -1,0 +1,52 @@
+/* Videos Off My Phone: the shared theme. Taken from the homepage story, Google Photos version (chosen 27 Nov 2026).
+   A light library ground, squeezed Anybody display type, Instrument Sans for reading, Google's four colours as solid slabs. */
+/* Fonts: Anybody and Instrument Sans from Google Fonts, linked in each page head (the owner chose Google Fonts, 27 Nov 2026). */
+:root{
+  --ink:#121417; --paper:#ffffff; --surface:#f8fafd;
+  --bg:var(--surface); --fg:#1b1d21; --fg-strong:#0e0f12; --fg-mute:#5a606b; --card:#ffffff; --line:#dde2ea; --link:#0b57d0;
+  --red:#EA4335; --yellow:#FBBC04; --blue:#4285F4; --green:#34A853;   /* Google's four */
+  --shadow:0 1px 3px rgba(60,64,67,.3),0 8px 24px rgba(60,64,67,.16);
+  --display:'Anybody','Arial Narrow',Impact,sans-serif;
+  --text:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --padl:max(20px,env(safe-area-inset-left,0px)); --padr:max(20px,env(safe-area-inset-right,0px));
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--text);font-size:18px;line-height:1.5}
+a{color:var(--link)}
+:focus-visible{outline:3px solid var(--link);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1240px;margin:0 auto;padding-left:var(--padl);padding-right:var(--padr)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;left:12px;top:-60px;z-index:10;background:var(--link);color:#fff;padding:8px 14px;border-radius:8px;font-weight:600}
+.skip:focus{top:12px}
+
+/* Header: the same bar as the homepage */
+.bar{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:8px 20px;padding-block:10px;
+  padding-left:var(--padl);padding-right:var(--padr);padding-top:calc(10px + env(safe-area-inset-top,0px));background:var(--bg);color:var(--fg)}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;font-weight:600;color:inherit;text-decoration:none;font-size:16px}
+.brand svg{width:30px;height:30px;flex:none}
+.bar a.quiet{font-size:15px;color:inherit}
+.bar a.quiet[aria-current=page]{text-decoration-thickness:2px;text-underline-offset:4px}
+.soon{font-size:14px;font-weight:600;padding:6px 14px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+
+/* Buttons */
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:10px 26px;border-radius:99px;background:var(--link);color:#fff;
+  font:600 17px var(--text);border:1px solid var(--link);text-decoration:none}
+.btn.sec{background:none;color:var(--link)}
+.btn[aria-disabled=true]{cursor:default}
+
+/* Display type */
+.display{font-family:var(--display);font-weight:850;font-stretch:60%;line-height:.9;letter-spacing:.005em;color:var(--fg-strong);margin:0}
+
+/* Footer: the same lines on every page */
+footer{border-top:1px solid var(--line);padding-block:22px 40px;font-size:14px;color:var(--fg-mute)}
+footer .wrap{display:flex;gap:8px 24px;flex-wrap:wrap}
+footer a{color:var(--link)}
+
+@media (max-width:700px){
+  body{font-size:17px}
+  .soon .wide{display:none}
+  .brand{font-size:15px}
+}

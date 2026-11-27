@@ -2,32 +2,100 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Privacy policy: Videos Off My Phone</title>
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/theme.css">
+<style>
+/* Privacy: a page people read. Calm type on the light ground; the one story element is "In short",
+   which lands as a green slab like the good news on the homepage. */
+.doc{padding-block:clamp(40px,9vh,96px) clamp(64px,12vh,140px)}
+.doc>*{max-width:35em}
+.doc h1{font-size:clamp(64px,11.5vw,184px);font-stretch:56%;line-height:.8;text-transform:uppercase;max-width:none;margin:0 0 clamp(26px,4vh,40px)}
+.doc .note{font-size:clamp(18px,1.5vw,20px);line-height:1.5;color:var(--fg-mute);max-width:33em;margin:0}
+
+/* In short: the slab */
+.short{max-width:min(100%,920px);margin:clamp(36px,6vh,64px) 0 clamp(20px,3vh,32px);background:var(--green);color:var(--ink);border-radius:26px;
+  padding:clamp(22px,3vw,40px) clamp(22px,3.4vw,48px) clamp(26px,3.4vw,44px)}
+.doc .short h2{font-family:var(--display);font-stretch:60%;font-weight:850;font-size:clamp(44px,6vw,92px);line-height:.85;color:var(--ink);margin:0 0 .28em}
+.doc .short h2::before{display:none}
+.doc .short p{margin:0;max-width:33em;font-size:clamp(19px,1.6vw,22px);line-height:1.45;font-weight:500}
+
+/* Sections */
+.doc h2{font-family:var(--display);font-stretch:72%;font-weight:800;font-size:clamp(30px,3.2vw,46px);line-height:.98;color:var(--fg-strong);
+  margin:clamp(48px,7vh,76px) 0 18px;text-wrap:balance}
+.doc h2::before{content:"";display:block;width:44px;height:6px;border-radius:3px;background:var(--c,var(--blue));margin-bottom:18px}
+.doc h2:nth-of-type(4n+1){--c:var(--blue)} .doc h2:nth-of-type(4n+2){--c:var(--red)} .doc h2:nth-of-type(4n+3){--c:var(--yellow)} .doc h2:nth-of-type(4n+4){--c:var(--green)}
+.doc p{margin:0 0 1em}
+.doc ul{margin:0 0 1em;padding-left:1.2em}
+.doc li{margin:0 0 .7em;padding-left:.2em}
+.doc li::marker{color:var(--fg-mute)}
+.doc strong{color:var(--fg-strong);font-weight:600}
+.doc a{text-underline-offset:3px;text-decoration-thickness:1px}
+.doc a:hover{text-decoration-thickness:2px}
+code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.84em;background:var(--card);border:1px solid var(--line);
+  color:var(--fg-strong);padding:.05em .3em;border-radius:5px;overflow-wrap:anywhere}
+
+/* The data table: wider than the reading measure on a desk, cards on a phone */
+.doc table{max-width:min(100%,1040px);width:100%;border-collapse:separate;border-spacing:0;margin:8px 0 26px;font-size:17px;line-height:1.45;
+  border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--card)}
+.doc th{font:600 13px/1.2 var(--text);text-transform:uppercase;letter-spacing:.08em;color:var(--fg-mute);text-align:left;padding:16px 20px;background:#f1f3f4}
+.doc td{padding:16px 20px;vertical-align:top;border-top:1px solid var(--line)}
+.doc td:first-child{color:var(--fg-strong);font-weight:500;width:34%}
+.doc td:nth-child(2){width:27%;color:var(--fg-mute)}
+
+@media (max-width:700px){
+  .bar{flex-wrap:wrap;row-gap:4px}
+  .bar .soon{order:1}
+  .bar::after{content:"";order:1;flex-basis:100%;height:0}
+  .bar a.quiet{order:2;font-size:15px;padding-block:6px}
+  .doc{padding-top:32px}
+  .doc h1{font-size:min(33vw,150px);width:min-content}
+  .short{border-radius:22px;margin-inline:-6px}
+  .doc table,.doc tbody,.doc tr,.doc td{display:block;width:auto}
+  .doc table{border:0;border-radius:0;overflow:visible;margin-bottom:22px}
+  .doc tr:first-child{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .doc tr{background:var(--card);box-shadow:var(--shadow);border:1px solid var(--line);border-radius:18px;padding:16px 18px;margin-bottom:12px}
+  .doc td,.doc td:first-child,.doc td:nth-child(2){width:auto;border:0;padding:0}
+  .doc td:first-child{font-size:18px;margin-bottom:12px}
+  .doc td+td{margin-top:8px}
+  .doc td[data-label]::before{content:attr(data-label);display:block;font:600 12px/1.2 var(--text);text-transform:uppercase;letter-spacing:.08em;color:var(--fg-mute);margin-bottom:3px}
+  .doc td:nth-child(2){color:var(--fg)}
+}
+</style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="brand" href="./"><img src="icon.svg" width="32" height="32" alt="">Videos Off My Phone</a><nav><a href="./">Home</a><a href="https://github.com/shlomsh/videos-off-my-phone">Source code</a></nav></div></header>
-<main class="doc">
-<h1>Privacy policy</h1>
-<p class="note">Effective 26 November 2026. Videos Off My Phone is a free, open source Chrome extension made by <mark class="fill">[developer name]</mark>, an independent developer. It is not made or endorsed by Google. Contact: <a href="https://github.com/shlomsh/videos-off-my-phone/issues">open an issue on GitHub</a>.</p>
+<header class="bar">
+  <a class="brand" href="/"><svg viewBox="16 16 96 96" aria-hidden="true"><defs><linearGradient id="vomS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b82ff"/><stop offset=".33" stop-color="#1fc878"/><stop offset=".66" stop-color="#ffbf1f"/><stop offset="1" stop-color="#ff5b4f"/></linearGradient><linearGradient id="vomB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5b4f"/><stop offset="1" stop-color="#ff2f87"/></linearGradient></defs><rect x="16.75" y="16.75" width="94.5" height="94.5" rx="26" fill="#fff" stroke="#e3e7f3" stroke-width="1.5"/><rect x="30" y="37" width="38" height="62" rx="10" fill="none" stroke="url(#vomS)" stroke-width="7"/><circle cx="49" cy="89" r="2.8" fill="#ff5b4f"/><path d="M60 70l8-8" stroke="#ffbf1f" stroke-width="5" stroke-linecap="round"/><circle cx="83" cy="45" r="19" fill="url(#vomB)"/><path d="M78 36v18l14-9z" fill="#fff"/></svg>Videos Off My Phone</a>
+  <a class="quiet" href="/how-it-works">How it works</a>
+  <a class="quiet" href="/privacy" aria-current="page">Privacy</a>
+  <span class="soon">Coming soon<span class="wide"> to Chrome</span></span>
+</header>
 
+<main class="wrap doc">
+<h1 class="display">Privacy policy</h1>
+<p class="note">Effective 26 November 2026. Videos Off My Phone is a free, open source Chrome extension made by Shlomi Shemesh, an independent developer. It is not made or endorsed by Google. Contact: <a href="https://github.com/shlomsh/videos-off-my-phone/issues">open an issue on GitHub</a>.</p>
+
+<section class="short">
 <h2>In short</h2>
 <p>The app runs only in your own Chrome. It has no server, no account with us, no ads, no analytics and no tracking. Your videos go straight from Google Photos to your own YouTube channel through your browser. Nothing is sent to us, sold or shared. We never receive, see or store any of it.</p>
+</section>
 
 <h2>Google Photos: how the app reaches it</h2>
 <p>Google Photos has no public interface for this. The app uses <strong>the same internal web calls the Google Photos website itself uses</strong>, from your own open, signed-in Google Photos tab, with your existing session there. It never sees, asks for or stores your Google password or cookies, and never sends them anywhere. Google can change these calls at any time; if they change, the app stops and deletes nothing.</p>
 
 <h2>What the app accesses, and why</h2>
-<table>
-<tr><th>What</th><th>From</th><th>Why</th></tr>
-<tr><td>Your list of videos: name, size, date, length, quality and preview picture</td><td>Google Photos, in your tab</td><td>To show your biggest videos so you can choose.</td></tr>
-<tr><td>Whether a video is in a shared album</td><td>Google Photos</td><td>Videos in shared albums are never deleted.</td></tr>
-<tr><td>The original video file</td><td>Google Photos</td><td>Streamed straight to YouTube. It is never saved to disk.</td></tr>
-<tr><td>The Google Photos trash list</td><td>Google Photos</td><td>To confirm that a delete really happened.</td></tr>
-<tr><td>Your YouTube channel name and id</td><td>YouTube, with your permission (<code>youtube.readonly</code>)</td><td>To show which channel you are signed in to, and to make sure every upload goes to that same channel.</td></tr>
-<tr><td>Details of the videos the app uploaded: visibility, size, resolution, processing state, recording day</td><td>YouTube (<code>youtube.readonly</code>)</td><td>To check the copy is complete before the app offers to delete the original.</td></tr>
+<table role="table">
+<tr role="row"><th role="columnheader">What</th><th role="columnheader">From</th><th role="columnheader">Why</th></tr>
+<tr role="row"><td role="cell" data-label="What">Your list of videos: name, size, date, length, quality and preview picture</td><td role="cell" data-label="From">Google Photos, in your tab</td><td role="cell" data-label="Why">To show your biggest videos so you can choose.</td></tr>
+<tr role="row"><td role="cell" data-label="What">Whether a video is in a shared album</td><td role="cell" data-label="From">Google Photos</td><td role="cell" data-label="Why">Videos in shared albums are never deleted.</td></tr>
+<tr role="row"><td role="cell" data-label="What">The original video file</td><td role="cell" data-label="From">Google Photos</td><td role="cell" data-label="Why">Streamed straight to YouTube. It is never saved to disk.</td></tr>
+<tr role="row"><td role="cell" data-label="What">The Google Photos trash list</td><td role="cell" data-label="From">Google Photos</td><td role="cell" data-label="Why">To confirm that a delete really happened.</td></tr>
+<tr role="row"><td role="cell" data-label="What">Your YouTube channel name and id</td><td role="cell" data-label="From">YouTube, with your permission (<code>youtube.readonly</code>)</td><td role="cell" data-label="Why">To show which channel you are signed in to, and to make sure every upload goes to that same channel.</td></tr>
+<tr role="row"><td role="cell" data-label="What">Details of the videos the app uploaded: visibility, size, resolution, processing state, recording day</td><td role="cell" data-label="From">YouTube (<code>youtube.readonly</code>)</td><td role="cell" data-label="Why">To check the copy is complete before the app offers to delete the original.</td></tr>
 </table>
 <p>The app does not read your photos, messages, contacts or anything else.</p>
 
@@ -68,6 +136,12 @@
 <h2>Changes</h2>
 <p>Changes to this policy are posted on this page, with a new effective date. If the app ever needs to use your data in a new way, it will ask you first. The full history is in the public source code.</p>
 </main>
-<footer><div class="wrap"><span>Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.</span><a href="./">Home</a></div></footer>
+
+<footer><div class="wrap">
+  <span>Google Photos and YouTube are trademarks of Google LLC. This extension is not made or endorsed by Google.</span>
+  <span>Made by Shlomi Shemesh, an independent developer.</span>
+  <a href="/privacy">Privacy policy</a>
+  <a href="https://github.com/shlomsh/videos-off-my-phone">Source code</a>
+</div></footer>
 </body>
 </html>

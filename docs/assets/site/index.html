@@ -2,73 +2,788 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Videos Off My Phone: free up storage for Google Photos</title>
 <meta name="description" content="Free and open source Chrome extension. Move big videos from Google Photos to your own YouTube channel, which doesn't use your Google storage, then delete the originals.">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css">
+<meta name="google-site-verification" content="bhsLVBUsEJb_DQ46_Z6qRp7a0QG3tjc0SAX0w2Odf4E">
+<meta name="theme-color" content="#f8fafd">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/atlas.webp" as="image" type="image/webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one fixed stage behind everything. The story follows the owner's own telling. The phone nags, the nags press
+   the videos flat into the storage bar, one more minute fills it, an hour of goodbyes buys a sliver, and then nothing
+   has to go. The type goes from squeezed and black to wide and light. The last frame is the logo. */
+:root{
+  --ink:#121417; --paper:#ffffff; --surface:#f8fafd; --line:#dde2ea;
+  --ink-text:#1b1d21; --ink-mute:#5a606b; --paper-text:#e7e9ed; --paper-mute:#a9b0bb;
+  --go:#0b57d0; --go-dark:#a9c7fb; --safe:#0b7a49; --safe-dark:#80dcaa;
+  --coral:#EA4335; --pink:#4285F4; --amber:#FBBC04; --blue:#4285F4; --green:#34A853;   /* Google red, blue, yellow, blue, green */
+  --tick:#1a73e8; --picked:#d3e3fd; --clock:#b06000; --free-ink:#1e8e3e;
+  --display:'Anybody','Arial Narrow',Impact,sans-serif;
+  --text:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  /* The library is light. Only the hour of goodbyes is dark, like the screen you open one video on. */
+  --ground:var(--surface); --fg:var(--ink-text); --fg-strong:#0e0f12; --fg-mute:var(--ink-mute); --link:var(--go); --clockc:var(--clock);
+  --padl:max(20px,env(safe-area-inset-left,0px)); --padr:max(20px,env(safe-area-inset-right,0px));
+  color-scheme:light;
+}
+:root.paper{ --ground:var(--paper) }
+:root.view{ --ground:#0f1012; --fg:var(--paper-text); --fg-strong:#fff; --fg-mute:var(--paper-mute); --link:var(--go-dark); --clockc:var(--amber); color-scheme:dark }
+*{box-sizing:border-box}
+html{scroll-behavior:auto}
+body{margin:0;background:var(--surface);color:var(--fg);font-family:var(--text);font-size:18px;line-height:1.5;overflow-x:hidden}
+a{color:var(--link)}
+:focus-visible{outline:3px solid var(--amber);outline-offset:3px;border-radius:6px}
+#stage{position:fixed;inset:0 0 auto;width:100%;height:100vh;height:100lvh;z-index:0;display:block}
+
+.bar{position:fixed;inset:0 0 auto;z-index:6;display:flex;align-items:center;gap:8px 20px;
+  padding-block:10px;padding-left:var(--padl);padding-right:var(--padr);
+  padding-top:calc(10px + env(safe-area-inset-top,0px));background:var(--ground);color:var(--fg);transition:background .35s,color .35s}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;font-weight:600;color:inherit;text-decoration:none;font-size:16px}
+.brand svg{width:30px;height:30px;flex:none}
+.bar a.quiet{font-size:15px;color:inherit}
+.soon{font-size:14px;font-weight:600;padding:6px 14px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+
+main{position:relative;z-index:1}
+.scene{position:relative}
+.pin{position:sticky;top:0;height:100vh;height:100svh;display:flex;flex-direction:column;justify-content:center;
+  padding-left:var(--padl);padding-right:var(--padr);padding-block:72px 32px;overflow:hidden}
+.say{opacity:var(--o,1)}
+.fx{position:fixed;z-index:2;margin:0;pointer-events:none;opacity:var(--o,0)}
+.soft{transition:opacity .3s}
+
+/* 1. The drill: the phone nags, and each nag presses the videos down */
+#s-drill{height:230vh}
+#s-drill .pin{justify-content:flex-end;padding-block:64px 36px}
+.crush{position:absolute;inset:0;transform-origin:0 0;transform:translateY(var(--press,0px)) scaleY(var(--k,1));display:flex;align-items:flex-start;padding-top:13vh;
+  padding-left:var(--padl);padding-right:var(--padr);pointer-events:none;opacity:var(--o,1)}
+.drill{margin:0;font-family:var(--display);font-stretch:56%;font-weight:850;color:var(--ink);line-height:.8;letter-spacing:.005em;
+  font-size:var(--fit,13vw);text-transform:uppercase;white-space:nowrap;user-select:none}
+.lede{position:relative;align-self:flex-end;max-width:34ch;margin:0;background:#26282d;color:#eceef2;padding:15px 20px;border-radius:12px;font-size:19px;line-height:1.35;box-shadow:0 2px 4px rgba(20,24,32,.16),0 10px 28px rgba(20,24,32,.22)}
+.lede strong{font-weight:600;color:#fff}
+#nags,#goods{position:fixed;z-index:4;top:52px;left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.nag{margin:0;background:var(--amber);color:var(--ink);border-radius:28px;padding:14px 24px 18px;box-shadow:0 2px 5px rgba(24,28,36,.22),0 22px 50px rgba(24,28,36,.36);
+  opacity:0;transform:translateY(-80vh);transition:transform .3s cubic-bezier(.5,0,.9,.4),opacity .1s .2s}
+.nag.on{opacity:1;transform:none;transition:transform .3s cubic-bezier(.55,0,.85,.45),opacity .05s}
+/* The warnings were loud colour fields. The good news is quiet, the way Google's own apps say it: a white card, the colour only in the tick. */
+#goods .nag{background:#fff;color:#202124;box-shadow:0 1px 3px rgba(60,64,67,.3),0 8px 24px rgba(60,64,67,.2)}
+#goods .meta{color:#5f6368}
+#goods .meta b::before{width:20px;height:20px;background:var(--green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.4l3 3 6-6.6' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat}
+/* Small stand-ins for what the phone really shows, stuck on each slab like a receipt. Drawn here, not screenshots. */
+#nags .nag{position:relative}
+.rcpt{position:absolute;right:26px;top:50%;width:238px;transform:translateY(-46%) rotate(var(--tilt,3deg)) scale(1.3);opacity:0;
+  font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;color:#1c1c1e;text-align:left;letter-spacing:0;
+  background:rgba(246,246,248,.97);border-radius:16px;box-shadow:0 10px 26px rgba(0,0,0,.38);overflow:hidden}
+.nag.on .rcpt{opacity:1;transform:translateY(-46%) rotate(var(--tilt,3deg));transition:transform .2s cubic-bezier(.16,1,.3,1) .36s,opacity .06s .36s}
+.rcpt .hd{display:flex;align-items:center;gap:6px;padding:9px 12px 0;font-size:10px;letter-spacing:.04em;color:#6e6e73}
+.rcpt .hd::before{content:"";width:14px;height:14px;border-radius:4px;background:#8e8e93}
+.rcpt .hd i{margin-left:auto;font-style:normal;letter-spacing:0}
+.rcpt b{display:block;padding:3px 12px 0;font-size:13px;font-weight:600;line-height:1.25}
+.rcpt .bd{display:block;padding:1px 12px 10px;font-size:12px;line-height:1.3;color:#3a3a3c}
+.rcpt.alert{width:204px;text-align:center}
+.rcpt.tall{width:196px} .rcpt.tall b{padding-top:9px;font-size:13px} .rcpt.tall .bd{padding-bottom:7px} .rcpt.tall .bt span{padding:4px;font-size:12.5px}
+.rcpt.alert b{padding:11px 14px 0;font-size:13.5px}
+.rcpt.alert .bd{padding:2px 14px 10px;font-size:11.5px}
+.rcpt .bt{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid rgba(60,60,67,.3)}
+.rcpt .bt.stack{grid-template-columns:1fr}
+.rcpt.two{top:auto;bottom:-62px;right:92px;width:224px;transform:rotate(var(--tilt)) scale(1.3)}
+.nag.on .rcpt.two{transform:rotate(var(--tilt));transition:transform .2s cubic-bezier(.16,1,.3,1) .62s,opacity .06s .62s}
+.rcpt .nw{display:none}
+/* Two of the alerts are the owner's own screenshots (blurred, cropped). On phones they fall back to the drawn pill tag. */
+.rcpt .ph{display:none}
+@media (min-width:701px){.rcpt.shot{width:300px;background:#1c1c1e;border-radius:18px;outline:1.5px solid rgba(255,255,255,.28);outline-offset:-1.5px}.rcpt.two.shot{width:270px}.rcpt.shot>:not(.ph){display:none}.rcpt.shot .ph{display:block;width:100%;height:auto}}
+.rcpt.icl b{display:flex;justify-content:space-between;gap:8px}
+.rcpt.icl em{font-style:normal;font-weight:500;color:#6e6e73}
+.rcpt .meter{display:block;margin:7px 12px 10px;height:7px;border-radius:9px;background:#e5e5ea}
+.rcpt .meter i{display:block;height:100%;width:98.8%;border-radius:9px;background:#ffcc00}
+.rcpt .bt.one{grid-template-columns:1fr}
+.rcpt .bt span{padding:6px 4px;font-size:13px;color:#007aff;text-align:center}
+.rcpt .bt span+span{border-left:1px solid rgba(60,60,67,.3);font-weight:600}
+.rcpt .bt.stack span+span{border-left:0;border-top:1px solid rgba(60,60,67,.3);font-weight:400}
+.ipstore{width:300px;padding:12px 14px 11px;border-radius:14px;background:rgba(246,246,248,.97);color:#1c1c1e;transform:rotate(-2deg);
+  font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;box-shadow:0 10px 26px rgba(0,0,0,.38)}
+.ipstore .t{display:block;font-size:13px;font-weight:600}
+.ipstore .u{display:block;font-size:11px;color:#6e6e73}
+.ipstore .sb{display:flex;height:14px;border-radius:4px;overflow:hidden;margin:8px 0 7px;background:#d1d1d6}
+.ipstore .sb i:nth-child(1){flex:74;background:#ffbf1f} .ipstore .sb i:nth-child(2){flex:12;background:#ff5b4f} .ipstore .sb i:nth-child(3){flex:6;background:#8e8e93} .ipstore .sb i:nth-child(4){flex:7;background:#aeaeb2} .ipstore .sb i:nth-child(5){flex:1;background:transparent}
+.ipstore .lg{display:flex;gap:10px;font-size:10px;color:#3a3a3c}
+.ipstore .lg i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}
+#n1{background:var(--blue)} #n2{background:var(--amber)} #n3,#nag4{background:var(--coral);color:#fff}   /* calm, caution, alarm */
+.meta{display:flex;justify-content:space-between;font:600 13px/1 var(--text);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px}
+.meta b{font-weight:600;display:flex;align-items:center;gap:8px}
+.meta b::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.meta i{font-style:normal;text-transform:none;letter-spacing:0}
+@media (min-width:701px){.nag .meta i{visibility:hidden}}
+@media (min-width:701px){#nags:has(#n2.on) .rcpt.two{opacity:0;transition:opacity .12s .28s}}   /* buried by the update warning: no sliver left between the slabs */
+.msg{display:block;font-family:var(--display);font-stretch:60%;font-weight:850;font-size:clamp(38px,min(6vw,10vh),92px);line-height:.9;text-wrap:balance}
+
+/* 2. Storage: the videos, pressed into the bar. One more minute fills it. */
+#s-store{height:330vh}
+.kick{font-family:var(--display);font-stretch:70%;font-weight:800;font-size:clamp(30px,4.4vw,68px);line-height:.95;color:var(--fg-strong);white-space:nowrap}
+.legend{font-size:14px;color:var(--fg-mute);display:flex;gap:4px 18px;flex-wrap:wrap}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:7px;vertical-align:-1px}
+.sw-o{background:#c3cad6}.sw-v{background:linear-gradient(90deg,var(--blue),var(--green),var(--amber),var(--coral))}
+.rec{text-align:right;color:var(--fg-strong);font-family:var(--display);font-stretch:62%;font-weight:800;line-height:.9}
+.rec .t{font-size:clamp(20px,2.2vw,34px);color:var(--fg-mute);display:flex;justify-content:flex-end;align-items:center;gap:.4em;margin-bottom:.15em}
+.rec .dot{width:.46em;height:.46em;border-radius:50%;background:var(--coral);animation:blink 1s steps(2,jump-none) infinite}
+.rec .mb{display:block;font-size:clamp(40px,6vw,96px)}
+@keyframes blink{to{opacity:.15}}
+.minute{font-family:var(--display);font-stretch:80%;font-weight:600;font-size:clamp(19px,2.1vw,31px);line-height:1.1;color:var(--fg-mute)}
+.minute b{color:var(--fg-strong);font-weight:750}
+.fullword{font-family:var(--display);font-weight:850;line-height:.76;color:var(--coral);text-transform:uppercase;white-space:nowrap;
+  opacity:0;transform:scale(1.16);transform-origin:0 50%;transition:opacity .12s,transform .12s}
+.fullword.on{opacity:1;transform:none;transition:opacity .05s,transform .2s cubic-bezier(.16,1,.3,1)}
+
+/* 3. The goodbyes, and the turn */
+#s-bye{height:588vh}
+#s-bye .pin{justify-content:flex-start;padding-top:var(--coltop,180px)}
+.col{width:min(50vw,760px);margin-left:calc(var(--tx,20px) - var(--padl));display:grid;gap:14px}
+.heads,.body{display:grid}
+.heads>*,.body>*{grid-area:1/1;align-self:start}
+#hbye{align-self:end}
+.hd{margin:0;font-family:var(--display);font-stretch:72%;font-weight:800;font-size:clamp(26px,min(2.9vw,5vh),44px);line-height:.95;color:var(--fg-strong);max-width:17ch;text-wrap:balance;transition:color .35s}
+.hd.keep{font-stretch:108%;font-weight:560;font-size:clamp(40px,min(5.4vw,9vh),86px);line-height:.92;max-width:11ch}
+.clock{margin:0 0 12px;font-size:15px;color:var(--fg-mute);display:flex;align-items:baseline;gap:10px}
+.clock b{font-family:var(--display);font-stretch:70%;font-weight:800;font-size:clamp(24px,2.4vw,36px);line-height:1;color:var(--clockc)}
+.litany{margin:0;padding:0;list-style:none;display:grid;gap:2px}
+.litany li{font-family:var(--display);font-stretch:66%;font-weight:700;font-size:clamp(25px,min(3.3vw,5.1vh),50px);line-height:1.08;color:var(--fg-strong);
+  opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
+.litany li.on{opacity:1;transform:none}
+.litany i{font-style:normal;color:var(--fg-mute);transition:color .3s}
+.nm{background:linear-gradient(var(--coral),var(--coral)) 0 58%/0 .09em no-repeat;transition:background-size .35s ease-out,color .3s}
+li.gone .nm{background-size:100% .09em;color:var(--fg-mute)}
+li.kept i{color:var(--safe)}
+.know1{margin:0;font-size:clamp(20px,min(2.1vw,3.6vh),31px);line-height:1.3;color:var(--fg);max-width:27ch}
+.know1 b{color:var(--fg-strong);font-weight:600}
+.spec{margin:20px 0 0;display:flex;gap:.45em;align-items:baseline;font-family:var(--display);font-stretch:135%;font-weight:250;
+  font-size:clamp(34px,min(4.4vw,8vh),72px);line-height:.9;color:var(--fg-strong);white-space:nowrap}
+.spec span+span::before{content:"·";margin-right:.45em;color:var(--tick)}
+.tcap{font-size:clamp(16px,1.4vw,20px);color:var(--fg-mute)}
+.tcap b{color:var(--fg-strong);font-weight:600}
+.gaptag{font-family:var(--display);font-stretch:78%;font-weight:700;font-size:clamp(18px,1.9vw,28px);line-height:1;color:var(--clockc);text-align:right}
+#nag4{position:fixed;z-index:3}
+#nag4.swipe{opacity:0;transform:translateX(70vw) rotate(4deg);transition:transform .35s cubic-bezier(.5,0,.9,.5),opacity .1s .25s}
+
+/* 4. The video */
+#s-video{height:230vh}
+#s-video .pin{align-items:center;justify-content:flex-start}
+.watch{margin:0;font-family:var(--display);font-stretch:104%;font-weight:520;font-size:clamp(24px,min(3vw,4.8vh),46px);line-height:1;color:var(--fg-strong);text-align:center;text-wrap:balance}
+#screen{position:fixed;z-index:2;border-radius:18px;overflow:hidden;opacity:var(--o,0);pointer-events:none;display:grid;place-items:center}
+#screen.on{pointer-events:auto}
+#play{width:clamp(72px,8vw,112px);aspect-ratio:1;border-radius:50%;border:0;background:#fff;display:grid;place-items:center;cursor:pointer;
+  box-shadow:0 2px 6px rgba(0,0,0,.2),0 14px 36px rgba(0,0,0,.32);transition:transform .2s}
+#play:hover{transform:scale(1.06)}
+#play svg{width:38%;margin-left:6%}
+.cap{position:absolute;left:0;right:0;bottom:0;padding:18px 22px;color:#fff;font-size:clamp(15px,1.5vw,20px);font-weight:600;
+  background:linear-gradient(transparent,rgba(18,20,23,.82));text-align:left}
+.under{position:fixed;z-index:2;margin:0;text-align:center;color:var(--fg-mute);font-size:16px;opacity:var(--o,0)}
+
+/* 5. Storage again, and now it is free */
+#s-free{height:210vh}
+.fullword.free{color:var(--free-ink)}
+.ytlabel{display:flex;align-items:flex-end;padding:8px 10px;border-radius:6px;font:600 13px/1.15 var(--text);color:#fff;background:linear-gradient(transparent 35%,rgba(18,20,23,.85))}
+
+/* 6. The good news lands the way the nags did */
+#s-good{height:300vh}
+#s-good .pin{justify-content:flex-end;padding-block:64px 36px}
+.lift{position:absolute;inset:0;display:flex;align-items:flex-start;padding-top:var(--gtop,50vh);padding-left:var(--padl);padding-right:var(--padr);pointer-events:none}
+.safe{opacity:0;transform:scale(1.12);transform-origin:0 50%;transition:opacity .12s,transform .12s}
+.safe.on{opacity:1;transform:none;transition:opacity .05s,transform .2s cubic-bezier(.16,1,.3,1)}
+#how{opacity:0;transition:opacity .4s}
+#how{background:#fff;color:#3c4043;box-shadow:0 1px 3px rgba(60,64,67,.3),0 6px 18px rgba(60,64,67,.18)} #how strong{color:#202124}   /* a light card, like the rest of the library */
+#how.on{opacity:1}
+
+/* After the story: the maker's own words, then the plain facts */
+.after{position:relative;z-index:5;background:var(--paper);color:var(--ink-text)}
+.wrap{max-width:1240px;margin:0 auto;padding-left:var(--padl);padding-right:var(--padr)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.geek{padding-block:18vh 9vh;display:grid;gap:4.5vh}
+.who{margin:0;font-family:var(--display);font-stretch:112%;font-weight:560;font-size:clamp(42px,8.6vw,140px);line-height:.92;color:#0e0f12}
+.why{margin:0;font-size:clamp(21px,2.3vw,34px);line-height:1.3;max-width:31ch}
+.zeros{list-style:none;margin:3vh 0 1vh;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:28px 2vw}
+.zeros li{display:grid;gap:10px;align-content:start}
+.zeros b{font-family:var(--display);font-stretch:150%;font-weight:260;font-size:clamp(84px,15vw,250px);line-height:.78}
+.zeros li:nth-child(1) b{color:var(--blue)} .zeros li:nth-child(2) b{color:var(--green)} .zeros li:nth-child(3) b{color:#F29900}
+.zeros li:nth-child(4) b{color:var(--coral)} .zeros li:nth-child(5) b{color:var(--pink)}
+.zeros li>span{font-size:clamp(16px,1.6vw,23px);font-weight:600;color:#0e0f12}
+.plain{margin:0;max-width:46ch;font-size:19px;line-height:1.45;color:var(--ink-mute)}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:10px 26px;border-radius:99px;background:var(--go);color:#fff;
+  font:600 17px var(--text);border:1px solid var(--go);text-decoration:none}
+.btn.sec{background:none;color:var(--go);border-color:#b9c3d3}
+.btn[aria-disabled=true]{cursor:default}
+.know{padding-bottom:10vh;font-size:16px;color:var(--ink-mute)}
+.know ul{margin:10px 0 0;padding-left:20px;display:grid;gap:6px;max-width:80ch}
+.know strong{color:#0e0f12;font-size:18px}
+.signin{padding-top:0;margin-top:-4vh}
+.signin h2{margin:0 0 6px;color:#0e0f12;font-size:18px}
+.signin p{max-width:80ch;margin:8px 0}.signin ul{margin:6px 0}.signin code{font-size:.92em;color:#0e0f12}
+footer{border-top:1px solid var(--line);padding-block:22px 40px;font-size:14px;color:var(--ink-mute)}
+footer .wrap{display:flex;gap:8px 24px;flex-wrap:wrap}
+footer a{color:var(--go)}
+
+@media (max-width:700px){
+  body{font-size:17px}
+  .bar a.quiet{display:none}
+  .soon .wide{display:none}
+  .brand{font-size:15px}
+  .nag{border-radius:22px;padding:12px 18px 16px}
+  .lede{align-self:flex-start}
+  .col{width:100%;margin-left:0;gap:10px}
+  .zeros{grid-template-columns:repeat(3,1fr)}
+  .ipstore{display:none}
+  .rcpt,.rcpt.alert,.rcpt.tall{width:auto;right:12px;top:auto;bottom:-11px;border-radius:99px;display:flex;align-items:center;gap:6px;padding:5px 11px 5px 7px;transform:rotate(var(--tilt,3deg)) scale(1.3);z-index:1}
+  .nag.on .rcpt{transform:rotate(var(--tilt,3deg))}
+  .rcpt::before{content:"";width:14px;height:14px;border-radius:4px;background:#8e8e93;flex:none}
+  .rcpt .hd,.rcpt .bd,.rcpt .bt,.rcpt .meter,.rcpt.icl em{display:none}
+  .rcpt.two{right:auto;left:10px;bottom:-11px;width:auto}
+  .rcpt.icl b{display:block}
+  .rcpt b,.rcpt.alert b,.rcpt.tall b,.rcpt.icl b{font-size:11px!important}
+  .rcpt,.rcpt.alert,.rcpt.tall{padding:4px 9px 4px 6px;gap:5px} .rcpt::before{width:12px;height:12px} .rcpt .nw{display:inline}
+  .nag.on .rcpt.two{transform:rotate(var(--tilt))}
+  .rcpt b,.rcpt.alert b,.rcpt.tall b{padding:0;font-size:12px;white-space:nowrap}
+  .ytlabel{font-size:11px;padding:6px 7px}
+}
+@media (prefers-reduced-motion:reduce){
+  .bar,.nag,.nag.on,#nag4.swipe,.fullword,.fullword.on,.litany li,.nm,.soft,.safe,.safe.on,#how,.nag.on .rcpt,.hd{transition:none}
+  .rec .dot{animation:none}
+}
+</style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="brand" href="./"><img src="icon.svg" width="32" height="32" alt="">Videos Off My Phone</a><nav><a href="privacy.html">Privacy</a><a href="https://github.com/shlomsh/videos-off-my-phone">Source code</a></nav></div></header>
-<main>
-<div class="hero wrap">
-<span class="chip">Free and open source</span>
-<h1>YouTube storage doesn’t count toward your Google storage.</h1>
-<div class="quota" role="img" aria-label="Your Google storage is shared by Gmail, Google Drive and Google Photos. YouTube is not part of it.">
-<div class="qbox">Your Google storage, 15 GB free<div class="qbar" aria-hidden="true"><i>Gmail</i><i>Drive</i><i>Photos</i></div></div>
-<span class="arr" aria-hidden="true">→</span>
-<div class="qbox qyt">Your YouTube channel<strong>Not part of it</strong></div>
-</div>
-<p class="lead">Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. It checks every copy, then deletes the originals after your yes. Your phone and your Google storage get the space back.</p>
-<div class="cta"><a class="btn" href="STORE_URL"><mark class="fill" style="background:none;padding:0">Add to Chrome</mark></a><a class="btn sec" href="https://github.com/shlomsh/videos-off-my-phone">See the source code</a></div>
-<p class="note">For Chrome on a computer. No ads, no account with us, no server of ours.</p>
-</div>
 
-<section><div class="wrap">
-<h2>How it works</h2>
-<ol class="steps">
-<li><b>1</b><strong>Choose.</strong> Your videos are listed biggest first. Tick the ones to move, or to delete.</li>
-<li><b>2</b><strong>Move.</strong> They go straight from Google Photos to your YouTube channel. You choose who can watch: only you, people with the link, or everyone.</li>
-<li><b>3</b><strong>Delete.</strong> Each copy is checked against the original. After your yes, the original goes to the Google Photos trash, where you can restore it for 30 days.</li>
-</ol>
-</div></section>
+<canvas id="stage" aria-hidden="true"></canvas>
 
-<section><div class="wrap">
-<h2>What it uses, and what it never does</h2>
-<div class="grid2">
-<div class="card"><h3>Google Photos</h3><p>It works in your own signed-in Google Photos tab: it lists your videos and their sizes, reads the video files to send them to YouTube, and moves an original to the trash only after you confirm it.</p></div>
-<div class="card"><h3>YouTube</h3><p>With your permission it uploads videos to your channel and reads their details back, to check that each copy is complete. It never deletes anything on YouTube.</p></div>
-<div class="card"><h3>Your data stays with you</h3><p>Videos go straight from Google to Google through your browser. The app keeps its notes on your computer only. There is no server of ours, no analytics and no ads.</p></div>
-<div class="card"><h3>Open source</h3><p>Every line is public, so anyone can check what it does. <a href="https://github.com/shlomsh/videos-off-my-phone">Read the code</a>.</p></div>
-</div>
-</div></section>
+<header class="bar">
+  <a class="brand" href="#top"><svg viewBox="16 16 96 96" aria-hidden="true"><defs><linearGradient id="vomS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b82ff"/><stop offset=".33" stop-color="#1fc878"/><stop offset=".66" stop-color="#ffbf1f"/><stop offset="1" stop-color="#ff5b4f"/></linearGradient><linearGradient id="vomB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5b4f"/><stop offset="1" stop-color="#ff2f87"/></linearGradient></defs><rect x="16.75" y="16.75" width="94.5" height="94.5" rx="26" fill="#fff" stroke="#e3e7f3" stroke-width="1.5"/><rect x="30" y="37" width="38" height="62" rx="10" fill="none" stroke="url(#vomS)" stroke-width="7"/><circle cx="49" cy="89" r="2.8" fill="#ff5b4f"/><path d="M60 70l8-8" stroke="#ffbf1f" stroke-width="5" stroke-linecap="round"/><circle cx="83" cy="45" r="19" fill="url(#vomB)"/><path d="M78 36v18l14-9z" fill="#fff"/></svg>Videos Off My Phone</a>
+  <a class="quiet" href="/how-it-works">How it works</a>
+  <a class="quiet" href="/privacy">Privacy</a>
+  <span class="soon">Coming soon<span class="wide"> to Chrome</span></span>
+</header>
 
-<section><div class="wrap">
-<h2>Google sign-in, and Google Photos</h2>
-<p>The app asks Google for two YouTube permissions:</p>
-<ul>
-<li><strong>Manage your YouTube videos</strong> (<code>youtube.upload</code>): to upload the videos you choose.</li>
-<li><strong>View your YouTube account</strong> (<code>youtube.readonly</code>): to confirm your channel, and to check each uploaded copy before anything is deleted.</li>
-</ul>
-<p>Google Photos has no public interface for this, so the app uses the same internal web calls the Google Photos website uses, in your own open Google Photos tab, with your existing session there. It never sees your password. If Google changes those calls, the app stops and deletes nothing.</p>
-<p>The app uses YouTube API Services: by using it you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. See also the <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and our <a href="privacy.html">privacy policy</a>. You can remove the app’s access at any time on <a href="https://myaccount.google.com/permissions">Google’s third-party access page</a>.</p>
-<p>Videos Off My Phone’s use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy and the Google API Services User Data Policy, including the Limited Use requirements.</p>
-</div></section>
+<main id="top">
+  <section class="scene" id="s-drill">
+    <div class="pin">
+      <div class="crush" id="crush"><h1 class="drill" id="drill">You know<br>the drill.</h1></div>
+      <p class="lede say" id="lede"><strong>Your phone is full of big videos.</strong> Videos Off My Phone is a free Chrome extension that moves them from Google Photos to your own YouTube channel.</p>
+    </div>
+    <div id="nags">
+      <p class="nag" id="n1"><span class="meta"><b>Backup</b><i>now</i></span><span class="msg">Couldn’t back up your phone.</span><span class="rcpt shot" style="--tilt:3deg" aria-hidden="true"><img class="ph" src="alert-not-backed-up.webp" alt="" width="600" height="276"><span class="hd">SETTINGS<i>now</i></span><b>iPhone Not Backed Up</b><span class="bd">It’s been 9 weeks since the last backup for this iPhone.</span></span><span class="rcpt two shot" style="--tilt:-2.5deg" aria-hidden="true"><img class="ph" src="alert-whatsapp-backup-failed.webp" alt="" width="600" height="239"><span class="hd">WHATSAPP</span><b><span class="nw">WhatsApp: </span>Backup failed</b><span class="bd">Not enough iCloud storage.</span></span></p>
+      <p class="nag" id="n2"><span class="meta"><b>Software update · Not enough storage</b><i>now</i></span><span class="msg">Can’t install the update.</span><span class="rcpt alert tall" style="--tilt:-2.5deg" aria-hidden="true"><b>Unable to Install Update</b><span class="bd">An error occurred installing iOS 27.</span><span class="bt stack"><span>Retry</span><span>Remind Me Later</span></span></span></p>
+      <p class="nag" id="n3"><span class="meta"><b>Storage</b><i>now</i></span><span class="msg">Storage almost full.</span><span class="rcpt icl" style="--tilt:2deg" aria-hidden="true"><span class="hd">ICLOUD</span><b><span class="nw">iCloud: </span>Almost Full<em>4.94 of 5 GB</em></b><span class="meter"><i></i></span><span class="bt one"><span>Upgrade to 50 GB for ₪3.90/month</span></span></span></p>
+    </div>
+  </section>
 
-<section><div class="wrap">
-<h2>Questions</h2>
-<dl>
-<dt>Does YouTube really not use my Google storage?</dt>
-<dd>Google’s own page on how storage works lists Gmail, Google Drive and Google Photos as sharing your storage. YouTube is not on that list. Google can change its rules, and YouTube has daily upload limits.</dd>
-<dt>Is the quality the same?</dt>
-<dd>The original file is uploaded, in full quality. YouTube makes its own versions to play, and it does not give back the original file, so keep anything you may need to edit later.</dd>
-<dt>When does my phone get the space back?</dt>
-<dd>When Google Photos on your phone removes the deleted video. The app shows the taps on an iPhone. Your phone may keep it in Recently Deleted for 30 days.</dd>
-<dt>What does it cost?</dt>
-<dd>Nothing. It is free and open source.</dd>
-</dl>
-</div></section>
+  <section class="scene" id="s-store">
+    <h2 class="kick fx" id="kick">You open storage.<br>It’s your videos.</h2>
+    <div class="ipstore fx" id="ipstore" aria-hidden="true"><span class="t">iPhone Storage</span><span class="u">127.4 GB of 128 GB Used</span><span class="sb"><i></i><i></i><i></i><i></i><i></i></span><span class="lg"><span><i style="background:#FBBC04"></i>Photos</span><span><i style="background:#EA4335"></i>Apps</span><span><i style="background:#8e8e93"></i>iOS</span><span><i style="background:#aeaeb2"></i>System Data</span></span></div>
+    <p class="legend fx" id="legend"><span><span class="sw sw-o"></span>Everything else</span><span><span class="sw sw-v"></span>Videos</span></p>
+    <div class="rec fx" id="rec" aria-hidden="true"><span class="t"><span class="dot"></span><span id="rect">0:00</span></span><span class="mb" id="recmb">0 MB</span></div>
+    <p class="minute fx" id="minute">One more minute of video, in 4K at 60 frames a second: <b id="mbtext">about 400 MB.</b></p>
+    <p class="fullword fx" id="fullword">Full.</p>
+  </section>
+
+  <section class="scene" id="s-bye">
+    <div class="pin">
+      <div class="col say" id="col">
+        <div class="heads">
+          <h2 class="hd say soft" id="hbye">So you spend an hour saying goodbye.</h2>
+          <h2 class="hd keep say soft" id="hkeep">Or keep every one.</h2>
+        </div>
+        <div class="body">
+          <div class="say soft" id="byebody">
+            <p class="clock say soft" id="clockrow"><span>Time spent choosing</span><b id="clock">0 minutes</b></p>
+            <ol class="litany" id="litany">
+              <li><i>Goodbye,</i> <span class="nm">the day at the beach</span>.</li>
+              <li><i>Goodbye,</i> <span class="nm">first bike ride</span>.</li>
+              <li><i>Goodbye,</i> <span class="nm">the fireworks</span>.</li>
+              <li><i>Goodbye,</i> <span class="nm">the school play</span>.</li>
+              <li><i>Goodbye,</i> <span class="nm">snow day</span>.</li>
+              <li><i>Goodbye,</i> <span class="nm">the road trip singalong</span>.</li>
+              <li><i>Goodbye,</i> <span class="nm">the dog meets the sea</span>.</li>
+            </ol>
+          </div>
+          <div class="say soft" id="dyk">
+            <p class="know1"><b>Did you know?</b> Your own YouTube channel keeps every one of them, in 4K, 60 frames a second, HDR. Free. Private or unlisted: you decide who sees them.</p>
+            <p class="spec" aria-hidden="true"><span>4K</span><span>60</span><span>HDR</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="tcap fx" id="tcap" aria-hidden="true"></p>
+    <p class="gaptag fx soft" id="gaptag">One hour bought this much.</p>
+    <p class="nag" id="nag4"><span class="meta"><b>Storage</b><i>now</i></span><span class="msg">Storage almost full.</span></p>
+  </section>
+
+  <section class="scene" id="s-video">
+    <div class="pin">
+      <h2 class="watch say" id="watch">A few clicks. Videos Off My Phone does the rest.</h2>
+    </div>
+  </section>
+
+  <section class="scene" id="s-free">
+    <h2 class="kick fx" id="kick2">You open storage<br>again.</h2>
+    <p class="ytlabel fx" id="ytlabel">Your own YouTube channel</p>
+    <p class="minute fx" id="freeline">Your big videos are off your phone. <b>Every one you moved is on your own YouTube channel.</b></p>
+    <p class="fullword free fx" id="freeword">Free.</p>
+  </section>
+
+  <section class="scene" id="s-good">
+    <div id="goods">
+      <p class="nag" id="g1"><span class="meta"><b>Backup</b><i>now</i></span><span class="msg">Phone backed up.</span></p>
+      <p class="nag" id="g2"><span class="meta"><b>WhatsApp</b><i>now</i></span><span class="msg">WhatsApp backed up.</span></p>
+      <p class="nag" id="g3"><span class="meta"><b>Software update</b><i>now</i></span><span class="msg">Update installed.</span></p>
+    </div>
+    <div class="pin">
+      <div class="lift"><h2 class="drill safe" id="safe">Your videos<br>are safe.</h2></div>
+      <p class="lede" id="how"><strong>They are on your own YouTube channel.</strong> Private means only you can watch. Unlisted means anyone with the link can watch. You choose for each video.</p>
+    </div>
+  </section>
 </main>
-<footer><div class="wrap"><span>Google Photos and YouTube are trademarks of Google LLC. This app is not made or endorsed by Google.</span><a href="privacy.html">Privacy policy</a></div></footer>
+
+<div id="screen" class="say">
+  <button id="play" type="button" aria-label="Play the demo video"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M9 4v32l28-16z" fill="#121417"/></svg></button>
+  <div class="cap" id="cap">Tick the big ones.</div>
+</div>
+<p class="under say" id="under">About a minute. Silent, with captions.</p>
+
+<div class="after">
+  <div class="wrap geek">
+    <h2 class="who">I’m that tech geek.</h2>
+    <p class="why">I built this for everyone. It is open source, with no servers, and it should be free for everyone. Free your phone and put it all on YouTube, private or unlisted.</p>
+    <ul class="zeros">
+      <li><b aria-hidden="true">0</b><span><span class="vh">No </span>servers</span></li>
+      <li><b aria-hidden="true">0</b><span><span class="vh">No </span>accounts</span></li>
+      <li><b aria-hidden="true">0</b><span><span class="vh">No </span>ads</span></li>
+      <li><b aria-hidden="true">0</b><span><span class="vh">No </span>trackers</span></li>
+      <li><b aria-hidden="true">0</b><span><span class="vh">Nothing </span>to pay</span></li>
+    </ul>
+    <p class="plain">Your videos go straight from Google Photos to your own YouTube channel, in your own browser. The code is open (MIT), so anyone can read every line.</p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/shlomsh/videos-off-my-phone">Read the code</a>
+      <span class="btn sec" role="button" aria-disabled="true">Add to Chrome: coming soon</span>
+    </div>
+  </div>
+  <div class="wrap know">
+    <strong>Good to know</strong>
+    <ul>
+      <li>Nothing is deleted without your yes. Deleted originals wait in the Google Photos trash for 30 days.</li>
+      <li>You choose who can watch each video: only you (private), anyone with the link (unlisted), or everyone.</li>
+      <li>Every copy is checked against the original: size, resolution, length and date.</li>
+      <li>Your phone gets the space back when Google Photos on your phone removes the deleted videos. The app shows the taps on an iPhone. Your phone may keep them in Recently Deleted for 30 days.</li>
+      <li>Videos in shared albums stay in Google Photos and are never deleted, so they free no space.</li>
+      <li>YouTube does not give the original file back. Keep another copy of anything you can’t replace.</li>
+      <li>YouTube allows about 100 uploads a day for the whole app, shared by all users.</li>
+      <li>Google shows an “unverified app” warning at sign-in until Google’s verification finishes.</li>
+    </ul>
+  </div>
+  <div class="wrap know signin">
+    <h2>Google sign-in, and Google Photos</h2>
+    <p>The app asks Google for two YouTube permissions:</p>
+    <ul>
+    <li><strong>Manage your YouTube videos</strong> (<code>youtube.upload</code>): to upload the videos you choose.</li>
+    <li><strong>View your YouTube account</strong> (<code>youtube.readonly</code>): to confirm your channel, and to check each uploaded copy before anything is deleted.</li>
+    </ul>
+    <p>Google Photos has no public interface for this, so the app uses the same internal web calls the Google Photos website uses, in your own open Google Photos tab, with your existing session there. It never sees your password. If Google changes those calls, the app stops and deletes nothing.</p>
+    <p>The app uses YouTube API Services: by using it you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. See also the <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and our <a href="/privacy">privacy policy</a>. You can remove the app’s access at any time on <a href="https://myaccount.google.com/permissions">Google’s third-party access page</a>.</p>
+    <p>Videos Off My Phone’s use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy and the Google API Services User Data Policy, including the Limited Use requirements.</p>
+    <p><a href="/how-it-works">How it works</a></p>
+  </div>
+  <footer><div class="wrap">
+    <span>Google Photos and YouTube are trademarks of Google LLC. This extension is not made or endorsed by Google.</span>
+    <span>Two of the phone alerts on this page are the maker’s own screenshots, blurred. The others are drawn examples. iPhone and iCloud are trademarks of Apple Inc. WhatsApp is a trademark of WhatsApp LLC.</span>
+    <span>Made by Shlomi Shemesh, an independent developer.</span>
+    <a href="/privacy">Privacy policy</a>
+    <a href="https://github.com/shlomsh/videos-off-my-phone">Source code</a>
+  </div></footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const cv = $('stage'), ctx = cv.getContext('2d'), root = document.documentElement;
+  const MB_MIN = 400;   // megabytes in one minute of 4K at 60 frames a second. Every invented size on the page is worked out from this one figure.
+  const BYE = [[130, 32], [65, 17], [200, 7], [360, 8], [50, 41], [270, 1], [90, 14]];   // each goodbye: seconds long, which picture
+  const DURS = [50, 38, 30, 24, 20, 16, 14], STARTS = [];   // the goodbyes get faster. Positions are in hundredths of a screen of scrolling.
+  { let s = 20; for (const d of DURS) { STARTS.push(s); s += d; } }
+  const ZMAX = 7, OTHER = .2;
+  const atlas = new Image(); let atlasOK = false, atlasG = null, atlasV = null;
+  atlas.onload = () => { atlasOK = true; variants(); kick(); }; atlas.src = '/atlas.webp';
+  const AC = 9, AW = 240, AH = 180, AN = 51;
+  const AVG = [[140,173,169],[137,184,187],[145,169,163],[152,134,127],[138,125,124],[166,142,130],[133,90,120],[145,99,121],[129,83,122],[169,165,152],[181,177,164],[160,157,147],[143,142,151],[142,135,130],[151,157,180],[155,156,96],[155,156,99],[160,162,103],[140,152,144],[161,174,160],[125,137,136],[150,129,110],[143,115,103],[158,142,118],[185,165,147],[198,176,153],[175,157,143],[160,156,142],[157,151,130],[167,166,159],[144,195,230],[142,188,221],[144,198,233],[159,136,124],[148,109,94],[177,164,155],[146,139,136],[144,135,135],[148,139,129],[210,209,206],[220,217,215],[202,201,194],[175,148,127],[188,158,138],[167,138,115],[175,142,128],[178,145,134],[167,138,122],[142,152,136],[143,161,154],[140,144,117]];
+  const mq = matchMedia('(prefers-reduced-motion: reduce)');
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const mix = (a, b, t) => a + (b - a) * t;
+  const ease = (t) => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+  const rng = (s) => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const size = (sec) => { const mb = sec / 60 * MB_MIN; return mb >= 1000 ? (mb / 1000).toFixed(1) + ' GB' : Math.round(mb / 10) * 10 + ' MB'; };
+  const long = (sec) => Math.floor(sec / 60) + ' min ' + String(sec % 60).padStart(2, '0') + ' s';
+  let W = 0, H = 0, DPR = 1, tiles = [], bye = [], G = {}, loaded = false;
+
+  // Two more prints of the pictures: one with the colour drained out, one with it turned up.
+  function variants() {
+    const mk = (fn) => { const c = document.createElement('canvas'); c.width = atlas.naturalWidth; c.height = atlas.naturalHeight; const x = c.getContext('2d'); x.drawImage(atlas, 0, 0); fn(x, c); return c; };
+    atlasG = mk((x, c) => { x.globalCompositeOperation = 'saturation'; x.fillStyle = '#777'; x.fillRect(0, 0, c.width, c.height); x.globalCompositeOperation = 'multiply'; x.fillStyle = '#62666e'; x.fillRect(0, 0, c.width, c.height); });
+    atlasV = mk((x, c) => { x.globalCompositeOperation = 'overlay'; x.globalAlpha = .5; x.drawImage(atlas, 0, 0); x.globalCompositeOperation = 'saturation'; x.globalAlpha = .2; x.fillStyle = '#f00'; x.fillRect(0, 0, c.width, c.height); });
+  }
+
+  function layout() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2); W = window.innerWidth; H = cv.clientHeight || window.innerHeight;
+    if (W < 50 || H < 50) return;   // not on screen yet: a resize will call this again
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    const r = rng(11), narrow = W < 700, hdr = document.querySelector('.bar').offsetHeight; tiles = [];
+    // The phone's library: days of videos under small date headings, rows packed edge to edge with thin white gutters.
+    // On a phone it is the app's even grid of squares; on a computer, justified rows of near-square thumbnails.
+    const HH = narrow ? 30 : 40, M = narrow ? 2 : 14, gc = 5, cell = (W - 2 * M) / gc;
+    const rows = narrow ? Math.ceil((H - hdr - 3 * HH) / cell) : 8, grp = narrow ? [3, 2, rows - 5] : [5, 2, 1], days = ['Today', 'Yesterday', 'Saturday'];
+    let hs = []; for (let j = 0; j < rows; j++) hs.push(narrow ? cell : .92 + r() * .16);
+    if (!narrow) { const hsum = hs.reduce((a, b) => a + b, 0); hs = hs.map((h) => h / hsum * (H - hdr - 3 * HH)); }
+    const ars = [1, 1, 1.33, .75, 1, 1.5, .8, 1.25, 1];
+    let y = hdr, j = 0; const heads = [];
+    grp.forEach((gn, gi) => {
+      heads.push({ x: 20, y: y + HH * .55, t: days[gi] }); y += HH;
+      for (let q = 0; q < gn; q++, j++) {
+        const rh = hs[j]; let x = 0; const row = [];
+        if (narrow) for (let c = 0; c < gc; c++) row.push(cell); else while (x < W - 2 * M) { const w = ars[Math.floor(r() * ars.length)] * rh; row.push(w); x += w; }
+        const k = (W - 2 * M) / row.reduce((a, b) => a + b, 0); let cx = M;
+        for (const w0 of row) { const w = w0 * k; tiles.push({ x: cx + w / 2, y: y + rh / 2, w, h: rh, s: Math.floor(r() * AN), a: r() * 2 - 1, b: r() * 2 - 1, c: r(), fy: y - hdr - HH * (gi + 1) + rh / 2 }); cx += w; }
+        y += rh;
+      }
+    });
+    { const fk = H / (y - hdr - 3 * HH); tiles.forEach((t) => { t.fy *= fk; t.fh = t.h * fk; }); }   // in the last wall the days run together: room, not headings
+    const wall = tiles.slice(), mmss = (sec) => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    wall.forEach((t) => { t.lab = mmss(6 + Math.floor(t.c * t.c * 280 + Math.abs(t.a) * 40)); });
+    // The storage bar: big in the middle of the screen at first, then a thin meter under the top bar.
+    const tw = narrow ? W - 32 : Math.min(W * .84, 1280), tx = (W - tw) / 2, GAP = narrow ? .045 : .035;
+    const T1 = { x: tx, w: tw, h: narrow ? 64 : clamp(H * .15, 90, 150), y: H * (narrow ? .29 : .3) };
+    const T2 = { x: tx, w: tw, h: narrow ? 28 : 44, y: hdr + (narrow ? 16 : 28) };
+    // Where one video is held up before it goes.
+    let ST;
+    if (narrow) { const w = W - 72, h = w * .6; ST = { x: W / 2, y: T2.y + T2.h + 30 + h / 2, w, h }; }
+    else { const top = T2.y + T2.h + 64, room = H - top - 110, w = Math.min(tw * .4, room * 1.5), h = w / 1.5; ST = { x: tx + tw - w / 2, y: top + h / 2 + (room - h) * .4, w, h }; }
+    // Every video is a slice of the bar. Left to right as they stood in the wall, so the wall can be pressed straight down into it.
+    const order = wall.map((t, i) => i).sort((p, q) => wall[p].x - wall[q].x);
+    wall.forEach((t) => { t.wt = Math.pow(t.w * t.h, .7); });
+    const avg = wall.reduce((a, t) => a + t.wt, 0) / wall.length;
+    const picks = [.1, .26, .4, .54, .66, .79, .91].map((f) => order[Math.round(f * (order.length - 1))]);
+    picks.forEach((i, n) => { const t = wall[i]; t.bye = n; t.s = BYE[n][1]; t.lab = mmss(BYE[n][0]); t.wt = avg * (1.3 + BYE[n][0] / 360 * 2.2); });
+    const sum = wall.reduce((a, t) => a + t.wt, 0), vw = tw * (1 - OTHER - GAP);
+    let bx = tw * OTHER;
+    order.forEach((i, k) => { const t = wall[i]; t.k = k; t.bw = t.wt / sum * vw; t.bx = bx; bx += t.bw; });
+    bye = picks.map((i) => wall[i]);
+    const freed = bye.reduce((a, t) => a + t.bw, 0);
+    bye.forEach((t, i) => { t.deck = { x: ST.x + (i - 3) * ST.w * .1, y: ST.y - ST.h * .02 + Math.pow(Math.abs(i - 3), 1.6) * ST.h * .04, w: ST.w * .56, h: ST.h * .56, rot: (i - 3) * .09 }; });
+    // One more minute of video closes the gap. Later, a weekend's worth fills what the goodbyes freed.
+    const Y = { x: tx + tw, y: T1.y, w: 60, h: 60, s: 19, a: .3, b: -.4, c: .5, bx, bw: tw * GAP, k: 9000, yd: true, nowall: true };
+    const parts = [.3, .24, .28, .18]; let fo = 0;
+    const refill = parts.map((p, n) => { const o = { x: tx + tw, y: T2.y, w: 60, h: 60, s: [30, 15, 39, 18][n], a: r() * 2 - 1, b: r() * 2 - 1, c: r(), bw: freed * p, fo, re: n, k: 9001 + n, nowall: true }; fo += freed * p; return o; });
+    tiles.push(Y, ...refill);
+    // The screen the leaving videos build. Later it shrinks to a small picture beside the bar: their new home.
+    const sw = narrow ? W - 32 : Math.min(W * .74, H * .54 * 16 / 9), sh = sw * 9 / 16;
+    const S = { x: (W - sw) / 2, y: narrow ? H * .5 - sh / 2 : H * .57 - sh / 2, w: sw, h: sh };
+    const yh = Math.min(tw * (narrow ? .42 : .22) * 9 / 16, T1.y - 18 - hdr - 12), YT = { w: yh * 16 / 9, h: yh, x: tx + tw - yh * 16 / 9, y: T1.y - 18 - yh };
+    // The smallest videos stay on the phone. Everything else leaves. In the last wall, the videos filmed later stand where those were.
+    const small = wall.map((t, i) => i).filter((i) => wall[i].bye == null).sort((p, q) => wall[p].w * wall[p].h - wall[q].w * wall[q].h);
+    small.slice(0, 6).forEach((i, n) => { const t = wall[i], o = [Y, ...refill][n]; t.stay = true; if (o) { o.x = t.x; o.y = t.y; o.w = t.w; o.h = t.h; o.fy = t.fy; o.fh = t.fh; } });
+    { let px0 = tw * OTHER; wall.filter((t) => t.stay).sort((p, q) => p.k - q.k).forEach((t) => { t.pk = px0; px0 += t.bw; }); }
+    // The screen is a picture made of the videos: light at the top, dark at the bottom, cool on the left, warm on the right.
+    const lum = (t) => { const c = AVG[t.s]; return .299 * c[0] + .587 * c[1] + .114 * c[2]; }, warm = (t) => AVG[t.s][0] - AVG[t.s][2];
+    const go = tiles.filter((t) => !t.stay).sort((p, q) => lum(q) - lum(p)), n = go.length;
+    const cols = Math.max(4, Math.round(Math.sqrt(n * 16 / 9 * .82))), rws = Math.floor(n / cols), cw = S.w / cols, ch = S.h / rws;
+    for (let j = 0; j < rws; j++) go.slice(j * cols, (j + 1) * cols).sort((p, q) => warm(p) - warm(q)).forEach((t, i) => { t.slot = { x: S.x + (i + .5) * cw, y: S.y + (j + .5) * ch, w: cw + .6, h: ch + .6 }; });
+    go.slice(cols * rws).forEach((t) => { t.slot = { x: W * (.2 + .6 * t.c), y: -H * .3, w: 40, h: 30 }; t.extra = true; });
+    { const k = go.filter((t) => !t.extra).sort((p, q) => (q.wt || 0) - (p.wt || 0)); k.slice(0, Math.round(k.length * .3)).forEach((t) => { t.big = true; }); }   // the big ones, ticked in the video
+    go.forEach((t) => {
+      t.d1 = t.bye != null ? t.bye * .05 : clamp(.25 + (t.bx || tw) / tw * .5 + t.c * .2);                        // order of leaving for the screen
+      t.dw = clamp(Math.hypot(t.x - YT.x - YT.w / 2, t.y - YT.y - YT.h / 2) / Math.hypot(W, H) * 1.3 + t.c * .12);   // order of opening out into the last wall
+      t.tag = t.c > .76 ? 'Unlisted' : 'Private';
+    });
+    G = { S, YT, T1, T2, ST, narrow, freed, tw, hdr, vw, ygap: tw * GAP, nparts: parts.length, heads, y0: hdr, gut: narrow ? 2 : 3, rad: narrow ? 3 : 7, sg: narrow ? 2 : 3 };
+    // Words that have to sit exactly on the picture are placed here. Everything else is plain page layout.
+    const put = (id, css) => Object.assign($(id).style, css), px = (v) => Math.round(v) + 'px';
+    $('nags').style.top = px(hdr);
+    put('kick', { left: px(tx), bottom: px(H - T1.y + 22) });
+    put('rec', { right: px(W - tx - tw), bottom: px(H - T1.y + 16) });
+    put('ipstore', { right: px(W - tx - tw + 6), bottom: px(H - T1.y + 22) });
+    put('legend', { left: px(tx), top: px(T1.y + T1.h + 12) });
+    put('minute', { left: px(tx), top: px(T1.y + T1.h + 44), width: px(tw) });
+    const ftop = T1.y + T1.h + 44 + $('minute').offsetHeight + (narrow ? 18 : 30);
+    const fbox = { w: tw, h: Math.max(80, H - ftop - (narrow ? 60 : 36)) };
+    put('fullword', { left: px(tx), top: px(ftop) }); fitWord($('fullword'), fbox);
+    put('freeword', { left: px(tx), top: px(ftop) }); fitWord($('freeword'), fbox);
+    put('freeline', { left: px(tx), top: px(T1.y + T1.h + 44), width: px(tw) });
+    put('kick2', { left: px(tx), bottom: px(H - T1.y + 22), maxWidth: px(tw - YT.w - 16), whiteSpace: narrow ? 'normal' : '' });
+    put('ytlabel', { left: px(YT.x), top: px(YT.y), width: px(YT.w), height: px(YT.h) });
+    $('goods').style.top = px(hdr);
+    put('tcap', { left: px(ST.x - ST.w / 2), top: px(ST.y + ST.h / 2 + 12), width: px(ST.w) });
+    put('gaptag', { right: px(W - tx - tw), top: px(T2.y + T2.h + 12) });
+    put('nag4', { left: px(ST.x - ST.w / 2), width: px(ST.w), top: px(ST.y - ST.h * .3) });
+    root.style.setProperty('--tx', px(tx)); root.style.setProperty('--coltop', px(narrow ? ST.y + ST.h / 2 + 40 : T2.y + T2.h + 60));
+    const sc = $('screen'); sc.style.left = S.x + 'px'; sc.style.top = S.y + 'px'; sc.style.width = S.w + 'px'; sc.style.height = S.h + 'px';
+    const un = $('under'); un.style.left = '0'; un.style.right = '0'; un.style.top = (S.y + S.h + 16) + 'px';
+    $('watch').style.maxWidth = px(narrow ? S.w : tw); $('watch').style.marginTop = Math.max(T2.y + T2.h + 14 - 72, S.y - 72 - $('watch').offsetHeight - 22) + 'px';
+    { // The settings card the storage words and the meter sit on, once for each visit.
+      const pad = narrow ? 12 : 30, kt = (id) => T1.y - 22 - $(id).offsetHeight, mb = (id) => T1.y + T1.h + 44 + $(id).offsetHeight;
+      G.C1 = { x: tx - pad, y: Math.min(kt('kick'), T1.y - 22 - (narrow ? 0 : $('ipstore').offsetHeight)) - pad, w: tw + 2 * pad }; G.C1.h = mb('minute') + pad * .55 - G.C1.y;
+      G.C2 = { x: tx - pad, y: Math.min(kt('kick2'), YT.y) - pad, w: tw + 2 * pad }; G.C2.h = mb('freeline') + pad * .55 - G.C2.y; G.cr = narrow ? 22 : 30; }
+    fitDrill(); fitNags();
+    nagB = ['n1', 'n2', 'n3'].map((id) => hdr + $(id).offsetTop + $(id).offsetHeight + 8);
+    goodB = ['g1', 'g2', 'g3'].map((id) => hdr + $(id).offsetTop + $(id).offsetHeight + 8);
+    root.style.setProperty('--gtop', px(goodB[2] + (narrow ? 10 : H * .03))); fitSafe();
+  }
+  let nagB = [0, 0, 0], goodB = [0, 0, 0];
+  function fitDrill() {   // the headline is as wide as its side of the screen
+    const el = $('drill'); el.style.setProperty('--fit', '200px');
+    const want = W < 700 ? W - 40 : W * .58; el.style.setProperty('--fit', Math.min(want / (el.offsetWidth || 1) * 200, H * .27) + 'px');
+  }
+  function fitNags() {   // each message is crammed into its slab, edge to edge
+    document.querySelectorAll('.nag .msg').forEach((el) => { el.style.fontStretch = ''; el.style.fontSize = ''; el.style.whiteSpace = ''; el.style.display = '';
+      const rc = el.parentElement.querySelector('.rcpt'); const box = el.parentElement.clientWidth - 48 - (rc && W >= 700 ? rc.offsetWidth + 30 : 0); if (W < 700 && el.parentElement.id !== 'nag4') return;
+      el.style.display = 'inline-block'; el.style.whiteSpace = 'nowrap'; el.style.fontStretch = '50%';
+      if (el.offsetWidth > box) { el.style.fontSize = parseFloat(getComputedStyle(el).fontSize) * box / el.offsetWidth + 'px'; return; }
+      let lo = 50, hi = 150; for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; el.style.fontStretch = m + '%'; if (el.offsetWidth > box) hi = m; else lo = m; }
+      el.style.fontStretch = lo + '%'; });
+  }
+  function fitWord(el, box) {   // the word is crammed into the space under the bar, edge to edge
+    let s = box.h / .76; el.style.fontSize = s + 'px'; el.style.fontStretch = '50%';
+    const w = el.offsetWidth || 1; if (w > box.w) { el.style.fontSize = s * box.w / w + 'px'; return; }
+    let lo = 50, hi = 150; for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; el.style.fontStretch = m + '%'; if (el.offsetWidth > box.w) hi = m; else lo = m; }
+    el.style.fontStretch = lo + '%';
+  }
+  function fitSafe() {   // the last headline stands at full height in what is left of the screen
+    const el = $('safe'), narrow = W < 700; el.style.setProperty('--fit', '200px');
+    const want = narrow ? W - 40 : W * .58, room = H - goodB[2] - (narrow ? $('how').offsetHeight + 70 : H * .1);
+    el.style.setProperty('--fit', Math.max(28, Math.min(want / (el.offsetWidth || 1) * 200, room / 1.7)) + 'px');
+  }
+
+  // Scroll positions of each scene, 0 to 1.
+  const through = (el) => { const r = el.getBoundingClientRect(); return clamp(-r.top / Math.max(1, r.height - H)); };
+  const enter = (el) => { const r = el.getBoundingClientRect(); return clamp((H - r.top) / H); };
+  const into = (el) => { const r = el.getBoundingClientRect(); return Math.max(0, Math.min(-r.top, r.height - H)) / H; };   // screens scrolled while the scene is pinned
+  // When each beat after the goodbyes happens, in screens scrolled into its scene. Each beat lands, then rests for about half a screen.
+  // The scene heights in the CSS are the last beat's rest plus one screen. Frame numbers are the storyboard's.
+  const BEAT = {
+    bye: { weekend: 2.70, nagBack: 3.02, turn: 3.60, keep: 3.66, know: 4.28 },   // 8 one hour bought this much, 9 the warning is back, 10 or keep every one
+    video: { fade: [1.0, 1.3] },                                               // 11 the screen is built and rests, then storage opens at once
+    free: { line: [.08, .23], word: .39 },                                     // 12 FREE.
+    good: { slabs: [.08, .38, .68], safe: 1.18, how: 1.42 },                   // 13 the good news lands as fast as the warnings did, 14 your videos are safe
+  };
+  const sDrill = $('s-drill'), sStore = $('s-store'), sBye = $('s-bye'), sVideo = $('s-video'), sFree = $('s-free'), sGood = $('s-good');
+  const lis = [...document.querySelectorAll('#litany li')], names = lis.map((li) => li.querySelector('.nm').textContent);
+  const tog = (el, cls, on) => { if (el.classList.contains(cls) !== on) { el.classList.toggle(cls, on); return true; } return false; };
+  const set = (id, o) => $(id).style.setProperty('--o', (+o).toFixed(3));
+  // Two things move on their own for a moment after a slam: the top of the wall, and the bar.
+  const sp = { press: { x: 0, v: 0, t: 0, k: 300, c: 26 }, shake: { x: 0, v: 0, t: 0, k: 900, c: 26 }, loose: { x: 0, v: 0, t: 0, k: 110, c: 11 }, hop: { x: 0, v: 0, t: 0, k: 260, c: 13 }, dk: { x: 0, v: 0, t: 0, k: 260, c: 32 } };
+  function springs(dt) { let live = false;
+    for (const s of Object.values(sp)) { if (mq.matches) { s.x = s.t; s.v = 0; continue; }
+      s.v += ((s.t - s.x) * s.k - s.v * s.c) * dt; s.x += s.v * dt;
+      if (Math.abs(s.v) > .5 || Math.abs(s.t - s.x) > .3) live = true; else { s.x = s.t; s.v = 0; } }
+    return live; }
+  let pressAt = 0;
+  let st = { F: 0, Z: 1, R: 0, up: 0, p: BYE.map(() => 0), Rf: 0, K: 0, Gt: 0, Sm: 0, Wl: 0, oy: 0 };
+  function read() {
+    const red = mq.matches, q = (v) => (red ? (v > .5 ? 1 : 0) : v);
+    const td = through(sDrill), es = enter(sStore), ts = through(sStore), eb = enter(sBye), ev = enter(sVideo), ef = enter(sFree), eg = enter(sGood);
+    // 1. The nags land one by one. Each one pushes the top of the wall down.
+    const on = [loaded || window.scrollY > 6, td > .18, td > .42];
+    ['n1', 'n2', 'n3'].forEach((id, i) => tog($(id), 'on', on[i]));
+    $('nags').style.transform = es > 0 ? 'translateY(' + (-es * H * 1.3).toFixed(1) + 'px)' : ''; $('nags').style.visibility = es >= 1 ? 'hidden' : '';
+    const want = on[2] ? nagB[2] : on[1] ? nagB[1] : on[0] ? nagB[0] : 0;
+    if (want > sp.press.t && !red && es <= 0) { if (!pressAt) { pressAt = performance.now() + 210; setTimeout(kick, 225); } if (performance.now() >= pressAt) { sp.press.t = want; pressAt = 0; } }
+    else { sp.press.t = want; pressAt = 0; }
+    const of = 1 - smooth(.02, .3, es); set('crush', of); set('lede', of);
+    // 2. The wall is pressed flat into the bar. Then we look closely at its end while one more minute is filmed.
+    const F = q(clamp(es));
+    const r0 = clamp((ts - .14) / .56), R = q(clamp((r0 - .2) / .6)), Z = red ? 1 : 1 + (ZMAX - 1) * (smooth(0, .2, r0) - smooth(.82, 1, r0));
+    const up = q(smooth(.1, .9, eb)), sv = smooth(.55, .95, es) * (1 - smooth(.04, .3, eb));
+    set('kick', sv); const lg = sv * (1 - smooth(0, .1, r0) + smooth(.9, 1, r0)); set('rec', sv * smooth(.08, .18, r0)); set('ipstore', sv * (1 - smooth(0, .07, r0))); set('minute', sv * smooth(.2, .32, r0));
+    const sec = Math.round(R * 60); $('rect').textContent = (sec >= 60 ? '1:00' : '0:' + String(sec).padStart(2, '0')); $('recmb').textContent = Math.round(R * MB_MIN) + ' MB';
+    if (tog($('fullword'), 'on', ts > .74 && eb < .12) && $('fullword').classList.contains('on')) sp.shake.v += 520;
+    // 3. The goodbyes. Then the weekend fills the gap again, the nag comes back, and the turn.
+    const pos = into(sBye) * 100, B = BEAT.bye, at = (v) => v * 100;
+    const p = STARTS.map((s, i) => { const v = clamp((pos - s) / DURS[i]); return red ? (v <= 0 ? 0 : v < 1 ? .45 : 1) : v; });
+    const Rf = q(clamp((pos - at(B.weekend)) / 28)), again = pos > at(B.nagBack), turn = pos >= at(B.turn), K = q(clamp((pos - at(B.keep)) / 50)), dyk = pos > at(B.know), gone = 1 - smooth(0, .3, ev);
+    lis.forEach((li, i) => { const kept = K > (6 - i) * .07 + .28; tog(li, 'on', p[i] > .3); tog(li, 'gone', p[i] > .62 && !kept);
+      if (tog(li, 'kept', kept)) li.querySelector('i').textContent = kept ? 'Keep' : 'Goodbye,'; });
+    let cur = -1; p.forEach((v, i) => { if (v > .02 && v < .97) cur = i; });
+    if (cur >= 0) { const html = '<b>' + names[cur][0].toUpperCase() + names[cur].slice(1) + '</b> · ' + long(BYE[cur][0]) + ' · ' + size(BYE[cur][0]); if ($('tcap').dataset.h !== html) { $('tcap').innerHTML = html; $('tcap').dataset.h = html; } }
+    set('tcap', cur < 0 ? 0 : smooth(.16, .3, p[cur]) * (1 - smooth(.6, .74, p[cur])));
+    const mins = Math.round(p.reduce((a, v) => a + smooth(.3, 1, v), 0) / p.length * 60); $('clock').textContent = mins >= 60 ? '1 hour' : mins + ' minutes';
+    const tagtxt = pos < at(B.weekend) ? 'One hour bought this much.' : 'Then comes the weekend.'; if ($('gaptag').textContent !== tagtxt) $('gaptag').textContent = tagtxt;
+    set('gaptag', pos > 213 && !turn ? gone : 0); set('col', 1 - smooth(.02, .22, ev));
+    set('hbye', turn ? 0 : 1); set('hkeep', turn ? 1 : 0); set('clockrow', turn ? 0 : 1); set('byebody', dyk ? 0 : 1); set('dyk', dyk ? 1 : 0);
+    if (tog($('nag4'), 'on', again && !turn && ev <= 0) && again && !turn) sp.shake.v += 380;
+    tog($('nag4'), 'swipe', turn);
+    const view = up > .5 && !turn && ev <= 0; root.classList.toggle('view', view); sp.dk.t = view ? 100 : 0;   // the hour of goodbyes is spent in the dark viewer
+    // 4. The videos leave the bar and build the screen.
+    const Gt = q(clamp((ev - .34) / .66)), vo = smooth(.82, 1, Gt) * (1 - smooth(...BEAT.video.fade, into(sVideo)));
+    set('watch', vo); set('screen', vo); set('under', vo); $('screen').classList.toggle('on', vo > .6);
+    // 5. Storage again. The screen shrinks to a small picture, the bar comes back to the middle, and it is empty.
+    const Sm = q(smooth(0, .7, ef)), sf = smooth(.3, .62, ef) * (1 - smooth(.02, .25, eg));
+    set('kick2', sf); set('ytlabel', sf * smooth(.9, 1, Sm)); set('freeline', sf * smooth(...BEAT.free.line, into(sFree))); set('legend', Math.max(lg, sf));
+    if (tog($('freeword'), 'on', into(sFree) > BEAT.free.word && eg < .1) && $('freeword').classList.contains('on')) sp.shake.v += 520;
+    // 6. The good news lands the way the nags did, and the videos open out into a wall again: safe, on YouTube.
+    const Wl = q(clamp((eg - .12) / .88)), gs = into(sGood), gon = BEAT.good.slabs.map((v) => gs > v), rb = sGood.getBoundingClientRect().bottom, oy = Math.min(0, rb - H);
+    ['g1', 'g2', 'g3'].forEach((id, i) => { if (tog($(id), 'on', gon[i] && eg >= 1) && gon[i] && !red) setTimeout(() => { sp.hop.v += 1500; kick(); }, 230); });
+    $('goods').style.transform = oy < 0 ? 'translateY(' + oy.toFixed(1) + 'px)' : '';
+    sp.loose.t = (gon[0] + gon[1] + gon[2]) / 3 * 100;
+    tog($('safe'), 'on', gs > BEAT.good.safe); tog($('how'), 'on', gs > BEAT.good.how);
+    root.classList.toggle('paper', Wl > .5 && rb > (G.hdr || 0));
+    st = { F, Z, R, up, p, Rf, K, Gt, Sm, Wl, pos, turn, held: p.some((v) => v > 0 && v < 1), oy, wall: Wl >= 1 && oy > -H, tagA: pos > 213 && !turn ? gone : 0, c1: sv, c2: sf, iv: into(sVideo) };
+  }
+
+  function tileImg(t, x, y, w, h, rot, rad, alpha, grey = 0, viv = 0, glow = 0, lab = 0, live = 0, txt = '', sel = 0, ring = 0) {
+    if (alpha <= .01 || w < .3 || h < 1) return;
+    const sx0 = (t.s % AC) * AW, sy0 = Math.floor(t.s / AC) * AH, ar = w / h; let sw = AW, sh = AH;
+    if (ar > AW / AH) sh = AW / ar; else sw = AH * ar;
+    let sx = sx0 + (AW - sw) / 2 + 2, sy = sy0 + (AH - sh) / 2 + 2; sw -= 4; sh -= 4;
+    if (live > 0) { const z = .1 * live, n = performance.now() / 1000; sx += sw * z / 2 * (1 + Math.sin(n * .5 + t.s) * .9); sy += sh * z / 2 * (1 + Math.cos(n * .4 + t.s) * .9); sw *= 1 - z; sh *= 1 - z; }
+    const rq = (ww, hh, r) => { ctx.beginPath(); ctx.roundRect(-ww / 2, -hh / 2, ww, hh, Math.max(0, Math.min(r, ww / 2, hh / 2))); };
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); if (rot) ctx.rotate(rot);
+    if (glow > 0 && w > 30) { const c = AVG[t.s]; ctx.shadowColor = glow > 1 ? `rgba(${c[0]},${c[1]},${c[2]},.55)` : 'rgba(0,0,0,.5)'; ctx.shadowBlur = glow > 1 ? 40 : 34; ctx.shadowOffsetY = glow > 1 ? 6 : 14;
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; rq(w, h, rad); ctx.fill(); ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; }
+    // Picked: the picture steps back inside a pale blue cell, the way a chosen item does in a photo library.
+    let iw = w, ih = h, ir = rad; const pk = sel > .01 ? ease(clamp(sel)) : 0;
+    if (pk > 0) { const ins = Math.min(w, h) * .075 * pk; ctx.fillStyle = '#d6e4fd'; rq(w, h, rad); ctx.fill(); iw = w - 2 * ins; ih = h - 2 * ins; ir = rad + ins * .6; }
+    ctx.save();
+    if (ir > 0 || rot || pk > 0) { rq(iw, ih, ir); ctx.clip(); }
+    if (atlasOK) { ctx.drawImage(atlas, sx, sy, sw, sh, -iw / 2, -ih / 2, iw, ih);
+      if (viv > .01 && atlasV) { ctx.globalAlpha = alpha * viv; ctx.drawImage(atlasV, sx, sy, sw, sh, -iw / 2, -ih / 2, iw, ih); }
+      if (grey > .01 && atlasG) { ctx.globalAlpha = alpha * grey; ctx.drawImage(atlasG, sx, sy, sw, sh, -iw / 2, -ih / 2, iw, ih); } }
+    else { ctx.fillStyle = ['#4285F4', '#34A853', '#FBBC04', '#EA4335', '#4285F4'][t.s % 5]; ctx.fillRect(-iw / 2, -ih / 2, iw, ih); }
+    ctx.restore();
+    const word = txt || t.lab;
+    if (lab > .02 && word && w > 54 && h > 30) { const big = w > 300, f = big ? 16 : w < 90 ? 11 : 12, in0 = big ? 12 : w < 90 ? 5 : 7;
+      ctx.font = '600 ' + f + 'px "Instrument Sans",system-ui,sans-serif'; ctx.textBaseline = 'middle';
+      if (txt) {   // who can watch it, on a small white chip
+        const f2 = f - 1.5; ctx.font = '600 ' + f2 + 'px "Instrument Sans",system-ui,sans-serif';
+        const ph = f2 + 7, pw = ctx.measureText(txt).width + 13, px0 = -iw / 2 + in0, py0 = ih / 2 - in0 - ph;
+        ctx.globalAlpha = alpha * lab * .88; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.roundRect(px0, py0, pw, ph, ph / 2); ctx.fill();
+        ctx.globalAlpha = alpha * lab; ctx.fillStyle = '#1b1d21'; ctx.textAlign = 'left'; ctx.fillText(txt, px0 + 6.5, py0 + ph / 2 + .5);
+      } else {     // its length, top right, with a small play triangle
+        const tr = f * .66, rx = iw / 2 - in0, cy = -ih / 2 + in0 + f * .55;
+        ctx.textAlign = 'right';
+        for (const [o, c, k] of [[1, '#000', .45], [0, '#fff', 1]]) { ctx.globalAlpha = alpha * lab * k; ctx.fillStyle = c;   // a hard drop shadow, then the label: cheap enough for a hundred tiles a frame
+          ctx.beginPath(); ctx.moveTo(rx - tr * .9 + o, cy - tr / 2 + o); ctx.lineTo(rx + o, cy + o); ctx.lineTo(rx - tr * .9 + o, cy + tr / 2 + o); ctx.closePath(); ctx.fill();
+          ctx.fillText(word, rx - tr - 4 + o, cy + .5 + o); } } }
+    // The round tick in the top left corner: an empty ring while nothing is chosen, a blue tick once it is.
+    if ((pk > 0 || ring > .01) && w > 28 && h > 24) {
+      const cr = clamp(Math.min(w, h) * .085, 7.5, 15), m = Math.max(4, cr * .5), cx = -w / 2 + cr + m, cy = -h / 2 + cr + m;
+      if (ring > .01 && pk < .99) { ctx.globalAlpha = alpha * ring * (1 - pk) * .7; ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1.5, cr * .17);
+        ctx.beginPath(); ctx.arc(cx, cy, cr - ctx.lineWidth / 2, 0, 7); ctx.fill(); ctx.stroke(); }
+      if (pk > 0) { const rr = cr * (.6 + .4 * pk); ctx.globalAlpha = alpha * clamp(pk * 1.6);
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, rr + Math.max(1.5, cr * .14), 0, 7); ctx.fill();
+        ctx.fillStyle = '#1a73e8'; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 7); ctx.fill();
+        const d = clamp(pk * 1.4 - .3); if (d > 0) { ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1.6, cr * .24); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          const p0 = [cx - cr * .42, cy + cr * .02], p1 = [cx - cr * .12, cy + cr * .32], p2 = [cx + cr * .44, cy - cr * .3], h1 = clamp(d * 2.2), h2 = clamp(d * 2.2 - 1);
+          ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(mix(p0[0], p1[0], h1), mix(p0[1], p1[1], h1)); if (h2 > 0) ctx.lineTo(mix(p1[0], p2[0], h2), mix(p1[1], p2[1], h2)); ctx.stroke(); } } }
+    ctx.restore();
+  }
+  function draw(now = 0) {
+    const { F, Z, R, up, p, Rf, K, Gt, Sm, Wl } = st, { S, YT, T1, T2, ST, freed, tw, nparts } = G; if (!S) return;
+    const dk = clamp(sp.dk.x / 100), lc = (a, b) => { const p = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)), A = p(a), B = p(b); return `rgb(${A.map((v, i) => Math.round(mix(v, B[i], dk))).join(',')})`; };
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.fillStyle = lc('#f8fafd', '#0f1012'); ctx.fillRect(0, 0, W, H);
+    const iris = smooth(0, .75, Wl), cx = YT.x + YT.w / 2, cy = YT.y + YT.h / 2;   // the open space spreads out from the videos' new home
+    if (iris > 0) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, iris * Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy)) * 1.03, 0, 7); ctx.fill(); }
+    const card = (c, a) => { if (!c || a <= .01) return; ctx.save(); ctx.globalAlpha = a; ctx.shadowColor = 'rgba(28,36,52,.12)'; ctx.shadowBlur = 34; ctx.shadowOffsetY = 10;
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.roundRect(c.x, c.y, c.w, c.h, G.cr); ctx.fill(); ctx.shadowColor = 'rgba(28,36,52,.10)'; ctx.shadowBlur = 2; ctx.shadowOffsetY = 1; ctx.fill(); ctx.restore(); };
+    card(G.C1, st.c1); card(G.C2, st.c2);
+    const tsec = mq.matches ? 0 : now / 1000;
+    const top = sp.press.x, kk = (H - top) / H;                                  // the wall, pressed down by the nags
+    const P = Math.max(top, G.y0), kw = (H - P) / (H - G.y0), pf = clamp((top - G.y0) / Math.max(1, nagB[2] - G.y0));   // each nag takes a little more of the room between the videos
+    const hA = 1 - smooth(0, .25, F);
+    if (hA > 0) { ctx.save(); ctx.globalAlpha = hA; ctx.fillStyle = '#3c424c'; ctx.font = '600 ' + (G.narrow ? 14 : 15) + 'px "Instrument Sans",system-ui,sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      for (const d of G.heads) ctx.fillText(d.t, d.x, P + (d.y - G.y0) * kw); ctx.restore(); }
+    const T = { x: T1.x, w: tw, y: mix(mix(T1.y, T2.y, up), T1.y, Sm) + sp.shake.x, h: mix(mix(T1.h, T2.h, up), T1.h, Sm) }, right = T.x + T.w;
+    const zx = (x) => right - (right - x) * Z;                                   // looking closely keeps the end of the bar in place
+    const pl = p.map((v) => smooth(0, .3, v)); let tot = 0; bye.forEach((t, i) => { tot += t.bw * pl[i]; });
+    const shift = (k) => { let s = 0; for (let i = 0; i < bye.length; i++) if (bye[i].k < k) s += bye[i].bw * pl[i]; return s; };
+    const ta = smooth(.1, .5, F) * (1 - smooth(0, .3, Wl)), inbar = F >= .999, rr = Math.min(T.h / 2, G.narrow ? 18 : 26), Lo = sp.loose.x / 100, empty = Gt >= .999;
+    const full = (R >= 1 && Z < 1.03 && tot < .5) || (Rf >= 1 && K < .5);
+    const barPath = () => { ctx.beginPath(); ctx.roundRect(T.x, T.y, T.w, T.h, rr); };
+    // What isn't video.
+    if (ta > 0) { ctx.save(); ctx.globalAlpha = ta; barPath(); ctx.clip(); ctx.fillStyle = lc('#e3e8ef', '#22252b'); ctx.fillRect(T.x, T.y, T.w, T.h);   // the meter's empty track
+      let ox = T.x; [[.5, lc('#c3cad6', '#3d434c')], [.3, lc('#d2d8e1', '#4a515c')], [.2, lc('#b4bcc9', '#343a42')]].forEach(([f, c]) => { const w = tw * OTHER * f; ctx.fillStyle = c; ctx.fillRect(zx(ox), T.y, w * Z + .5, T.h); ox += w; }); ctx.restore(); }
+    if (K > 0 && Gt < 1) { const a = K * (1 - Gt), rad0 = Math.max(W, H) * .55, g = ctx.createRadialGradient(ST.x, ST.y, 0, ST.x, ST.y, rad0);
+      g.addColorStop(0, `rgba(120,168,255,${.26 * a})`); g.addColorStop(.45, `rgba(59,130,255,${.08 * a})`); g.addColorStop(1, 'rgba(59,130,255,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+    const inside = [], above = [];
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i]; let rot = 0, rad = 0, al = 1, grey = 0, viv = K, glow = 0, z = 0, lifted = false, lab = 1 - smooth(0, .25, F), live = 0, txt = '', sel = 0, ring = 0;
+      // Its slice of the bar.
+      let bw = t.bw * Z, left;
+      if (t.re != null) { const g = ease(clamp(Rf * nparts - t.re)); bw *= g; if (g <= 0) al = 0; left = zx(T.x + tw - tot + t.fo); }
+      else { left = zx(T.x + t.bx - shift(t.k)); if (t.yd) { bw *= R; if (R <= 0) al = 0; } if (t.stay && Gt > 0) left = mix(left, T.x + t.pk, smooth(.45, 1, Gt)); }
+      let x = left + bw / 2, y = T.y + T.h / 2, w = bw + (bw > 1 ? .7 : 0), h = T.h;
+      if (!t.yd && Z > 1) al *= 1 - .5 * smooth(1, 2.5, Z);
+      // Still on its way down from the wall.
+      if (!t.nowall && F < 1) { const ea = ease(clamp(F / .62)), eb = ease(clamp((F - .58 - t.c * .1) / .32));
+        const mw = t.w / W * G.vw, mh = t.h / H * T.h, mx = T.x + tw * OTHER + t.x / W * G.vw, my = T.y + t.y / H * T.h;
+        const g = G.gut * (1 - .85 * pf) * (1 - ea), ax = mix(t.x, mx, ea), ay = mix(P + (t.y - G.y0) * kw, my, ea), aw = mix(t.w, mw + .6, ea) - g, ah = mix(t.h * kw, mh + .6, ea) - g;
+        x = mix(ax, x, eb); y = mix(ay, y, eb); w = mix(aw, w, eb); h = mix(ah, h, eb); rad = G.rad * (1 - .5 * pf) * (1 - ea) * (1 - eb); }
+      // Held up, looked at, and let go. Later it comes back.
+      if (t.bye != null && p[t.bye] > 0) { const v = p[t.bye], e1 = ease(clamp(v / .3)), e2 = clamp((v - .6) / .4), e3 = e2 * e2; lifted = true;
+        x = mix(x, ST.x, e1); y = mix(y, ST.y, e1) + e3 * H * .2; const sc = 1 - .14 * e3; w = mix(w, ST.w, e1) * sc; h = mix(h, ST.h, e1) * sc; rad = 14 * e1; rot = t.a * .09 * e3;
+        al = 1 - smooth(.5, 1, e2); grey = smooth(0, .55, e2); glow = e1 > .5 ? 1 : 0; z = 10 + t.bye; lab = smooth(.6, 1, e1) * (1 - smooth(0, .5, e2)); ring = lab; live = mq.matches ? 0 : e1 * (1 - e2);
+        const kq = ease(clamp((K - (6 - t.bye) * .07) / .5));
+        if (kq > 0) { const d = t.deck, bob = Math.sin(tsec * .9 + t.bye * 1.3) * 3 * kq * (1 - Gt);
+          x = mix(ST.x, d.x, kq); y = mix(ST.y + H * .2, d.y, kq) + bob; w = mix(ST.w * .86, d.w, kq); h = mix(ST.h * .86, d.h, kq); rot = d.rot * kq; rad = 12;
+          al = smooth(0, .35, kq); grey = 1 - smooth(.05, .6, kq); viv = kq; glow = kq > .3 ? 2 : 0; z = 20 + t.bye; lab = 0; ring = 0; sel = smooth(.35, .8, kq); live = mq.matches ? 0 : kq; } }
+      if (t.stay) al *= 1 - smooth(0, .3, Wl);   // it stays in the bar
+      else if (Gt > 0) {
+        const e = ease(clamp((Gt - t.d1 * .45) / .55)), s = t.slot;
+        if (e > 0) { const arc = Math.sin(Math.PI * e); lifted = true;
+          x = mix(x, s.x, e) + arc * t.a * W * .08; y = mix(y, s.y, e) - arc * Math.abs(t.b) * H * .1; w = mix(w, s.w - G.sg, e); h = mix(h, s.h - G.sg, e); rot = rot * (1 - e) + arc * t.b * .35; rad = mix(rad, G.narrow ? 2 : 4, e); if (t.extra) al *= 1 - e; if (e > .6) { glow = 0; sel = 0; }
+          if (e >= 1 && !t.extra) { const off = 1 - smooth(0, .3, Sm), iv = st.iv; ring = smooth(.02, .1, iv) * off; if (t.big) sel = smooth(.06 + t.c * .5, .16 + t.c * .5, iv) * off; } }   // the big ones get ticked
+        if (Sm > 0) { const e2 = ease(Sm), k = YT.w / S.w; x = mix(x, YT.x + (s.x - S.x) * k, e2); y = mix(y, YT.y + (s.y - S.y) * k, e2); w = mix(w, s.w * k + .4, e2); h = mix(h, s.h * k + .4, e2); }
+        if (Wl > 0) { const e3 = ease(clamp((Wl - t.dw * .4) / .6)), arc = Math.sin(Math.PI * e3), sc = mix(.955, .83, Lo), bob = e3 * (.3 + Lo * 1.4), hop = sp.hop.x * (.5 + t.c) * e3;
+          x = mix(x, t.x, e3) + arc * t.a * W * .05 + Math.sin(tsec * .5 + i) * 2.5 * bob; y = mix(y, t.fy, e3) - arc * Math.abs(t.b) * H * .07 + Math.cos(tsec * .42 + i * 1.7) * 2.5 * bob + hop + st.oy;
+          w = mix(w, t.w * sc, e3); h = mix(h, t.fh * sc, e3); rot = arc * t.b * .3 + t.a * .022 * e3 * Lo; rad = 10 * e3; if (t.extra) al = e3; lab = smooth(.85, 1, e3); txt = t.tag; viv = mix(viv, .6, e3); z = 1; lifted = true; }
+      }
+      (lifted || !inbar ? above : inside).push([z, t, x, y, w, h, rot, rad, al, grey, viv, glow, lab, live, txt, sel, ring]);
+    }
+    if (inside.length) { ctx.save(); barPath(); ctx.clip(); for (const a of inside) tileImg(...a.slice(1)); ctx.restore(); }
+    if (Z > 1.02 && R > 0 && R < 1) { const yl = zx(T.x + tw - G.ygap), yw = G.ygap * Z * R; ctx.save(); barPath(); ctx.clip(); ctx.strokeStyle = '#EA4335'; ctx.lineWidth = 4; ctx.strokeRect(yl + 2, T.y + 2, Math.max(0, yw - 4), T.h - 4); ctx.restore(); }
+    // The bar's edge. Coral when there is no room left.
+    if (ta > 0) { ctx.save(); ctx.globalAlpha = ta; ctx.lineWidth = full || empty ? 3 : 1; ctx.strokeStyle = empty ? '#34A853' : full ? '#EA4335' : lc('#cfd5df', '#3a3f47'); barPath(); ctx.stroke();
+      const ga = st.tagA * (1 - smooth(.6, 1, Rf)); if (ga > 0 && tot > 2) { const gx0 = right - tot + freed * ease(clamp(Rf)), yy = T.y + T.h + 6; ctx.globalAlpha = ga; ctx.strokeStyle = '#FBBC04'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(gx0, yy - 3); ctx.lineTo(gx0, yy + 3); ctx.moveTo(gx0, yy); ctx.lineTo(right - 2, yy); ctx.moveTo(right - 2, yy - 3); ctx.lineTo(right - 2, yy + 3); ctx.stroke(); }
+      ctx.restore(); }
+    above.sort((a, b) => a[0] - b[0]); for (const a of above) tileImg(...a.slice(1));
+    if (grain) { ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .08; ctx.fillStyle = grain; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+    // The headline is pressed down with the wall.
+    $('crush').style.setProperty('--press', top.toFixed(1) + 'px'); $('crush').style.setProperty('--k', kk.toFixed(4));
+  }
+  // A little film grain, so the colour fields feel printed and not rendered.
+  let grain = null; { const g = document.createElement('canvas'); g.width = g.height = 180; const gx = g.getContext('2d'), id = gx.createImageData(180, 180), r = rng(3);
+    for (let i = 0; i < id.data.length; i += 4) { const v = Math.floor(r() * 255); id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; } gx.putImageData(id, 0, 0); grain = ctx.createPattern(g, 'repeat'); }
+
+  let raf = 0, last = 0;
+  const tick = (now) => { raf = 0; const dt = Math.min(.05, (now - last) / 1000 || .016); last = now; read(); const live = springs(dt); draw(now);
+    if (!document.hidden && (live || (!mq.matches && ((st.K > 0 && st.Gt < 1) || st.held || st.wall)))) raf = requestAnimationFrame(tick); };
+  const kick = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); } };
+  addEventListener('scroll', kick, { passive: true });
+  addEventListener('resize', () => { if (window.innerWidth !== W || Math.abs((cv.clientHeight || window.innerHeight) - H) > 1) layout(); kick(); });   // a phone's address bar hiding must not re-lay the wall
+  document.fonts && document.fonts.ready.then(() => { layout(); kick(); });
+  mq.addEventListener && mq.addEventListener('change', kick);
+  $('mbtext').textContent = 'about ' + MB_MIN + ' MB.';
+  setTimeout(() => { loaded = true; kick(); }, mq.matches ? 0 : 650);   // the first nag arrives on its own
+  if (window.ResizeObserver) new ResizeObserver(() => { if (!G.S) { layout(); kick(); } }).observe(cv);
+  layout(); read(); draw();
+
+  // The video is not recorded yet. Until it is, Play steps through its captions.
+  const caps = ['Tick the big ones.', 'Move to YouTube. You choose who can watch.', 'Every copy is checked against the original.', 'Delete from Google Photos, after your yes.', 'Your iPhone gets the space back.'];
+  let ci = 0, timer = 0;
+  const step = () => { ci++; if (ci >= caps.length) { ci = 0; clearInterval(timer); timer = 0; $('play').hidden = false; } $('cap').textContent = caps[ci]; };
+  $('play').addEventListener('click', () => { if (timer) return; $('play').hidden = true; step(); timer = setInterval(step, 1900); });
+
+  // The zeros roll down to nothing when they come into view.
+  const zs = [...document.querySelectorAll('.zeros b')];
+  if (window.IntersectionObserver && zs.length) new IntersectionObserver((es, ob) => { if (!es.some((e) => e.isIntersecting)) return; ob.disconnect(); if (mq.matches) return;
+    zs.forEach((b, i) => { let n = 9; b.textContent = n; const go = () => { n--; b.textContent = n; if (n > 0) setTimeout(go, 55); }; setTimeout(go, 150 + i * 140); }); }, { threshold: .4 }).observe(document.querySelector('.zeros'));
+})();
+</script>
 </body>
 </html>

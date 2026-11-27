@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How it works: Videos Off My Phone</title>
+<meta name="description" content="Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. It checks every copy, then deletes the originals after your yes. Your phone and your Google storage get the space back.">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Instrument+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/theme.css">
+<script>/* The steps land one after another as you scroll. Without the script, or with reduced motion, they are simply there. */
+if ('IntersectionObserver' in window && matchMedia('(prefers-reduced-motion: no-preference)').matches) document.documentElement.classList.add('land');</script>
+<style>
+/* How it works: the old homepage's plain explanations. The three steps land like the warnings on the homepage:
+   solid slabs, ink type, the number the biggest thing on the page. Everything after them stays calm. */
+main{overflow-x:clip}
+.intro{padding-block:clamp(48px,11vh,120px) clamp(36px,7vh,72px)}
+.intro h1{font-size:clamp(64px,11vw,168px);font-stretch:54%;line-height:.82}
+.lead{margin:clamp(22px,4vh,40px) 0 0;max-width:44ch;font-size:clamp(19px,1.7vw,24px);line-height:1.4;color:var(--fg)}
+
+/* The three steps */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+/* Wide: the step word top left, its sentence bottom left, the number stamped down the right side.
+   Narrow: the number floats right and the words wrap round it. */
+.slab{display:grid;grid-template-columns:1fr auto;gap:0 clamp(18px,3vw,48px);
+  background:var(--blue);color:var(--ink);border-radius:26px;padding:clamp(22px,2.6vw,34px) clamp(26px,3.4vw,52px) clamp(26px,3vw,40px);
+  box-shadow:0 2px 5px rgba(24,28,36,.18),0 18px 44px rgba(24,28,36,.22)}
+.steps li:nth-child(2) .slab{background:var(--yellow)}
+.steps li:nth-child(3) .slab{background:var(--green)}   /* blue, yellow, green: the steps end in the good-news green */
+.n{grid-column:2;grid-row:1;align-self:end;font-family:var(--display);font-weight:850;font-stretch:50%;font-size:clamp(150px,32vw,470px);
+  line-height:.74;letter-spacing:0;margin-bottom:-.075em;transform-origin:100% 100%}
+.say{grid-column:1;grid-row:1;margin:0;display:flex;flex-direction:column;justify-content:space-between;gap:24px;
+  max-width:40ch;font-size:clamp(18px,1.7vw,24px);line-height:1.38;font-weight:500}
+.say strong{font-family:var(--display);font-weight:850;font-stretch:60%;font-size:clamp(52px,9vw,150px);line-height:.86}
+
+@media (prefers-reduced-motion:no-preference){
+  .land .steps li .slab{opacity:0;transform:translateY(-55vh);transition:transform .3s cubic-bezier(.5,0,.9,.4),opacity .1s .2s}
+  .land .steps li.on .slab{opacity:1;transform:none;transition:transform .3s cubic-bezier(.55,0,.85,.45),opacity .05s}
+  .land .steps li .n{transform:scale(1.16)}
+  .land .steps li.on .n{transform:none;transition:transform .2s cubic-bezier(.16,1,.3,1) .3s}
+}
+@media print{.land .steps li .slab,.land .steps li .n{opacity:1;transform:none}}
+
+/* The calm part */
+.plain{padding-block:clamp(56px,11vh,120px) 0}
+.plain h2{font-family:var(--display);font-weight:850;font-stretch:62%;font-size:clamp(40px,5.2vw,76px);line-height:.9;color:var(--fg-strong);margin:0 0 clamp(22px,4vh,36px);max-width:18ch}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.card{--dot:var(--blue);background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:18px;padding:22px 26px 24px}
+.card:nth-child(2){--dot:var(--red)} .card:nth-child(3){--dot:var(--yellow)} .card:nth-child(4){--dot:var(--green)}
+.card h3::before{content:"";display:inline-block;width:.36em;height:.36em;border-radius:50%;background:var(--dot);margin-right:.3em;vertical-align:.14em}
+.card h3{margin:0 0 8px;font-family:var(--display);font-weight:800;font-stretch:72%;font-size:clamp(26px,2.4vw,34px);line-height:1;color:var(--fg-strong)}
+.card p{margin:0;color:var(--fg)}
+.read{max-width:68ch}
+.read p{margin:0 0 1em}
+.read ul{margin:0 0 1em;padding-left:22px;display:grid;gap:8px}
+.read strong{color:var(--fg-strong);font-weight:600}
+code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.86em;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:.08em .38em}
+.qa{margin:0;max-width:68ch}
+.qa dt{font-family:var(--display);font-weight:800;font-stretch:72%;font-size:clamp(24px,2.2vw,30px);line-height:1.05;color:var(--fg-strong)}
+.qa dd{margin:8px 0 30px;color:var(--fg)}
+.qa dd:last-child{margin-bottom:0}
+.last{padding-bottom:clamp(64px,12vh,128px)}
+
+@media (max-width:700px){
+  /* The shared bar has four things in it here: brand and pill on top, the quiet links under them */
+  .bar{flex-wrap:wrap}
+  .bar a.quiet{order:2;font-size:15px}
+  .soon{order:1}
+  .slab{display:flow-root;border-radius:22px;padding:18px 20px 22px}
+  .n{float:right;font-size:clamp(150px,56vw,240px);margin:0 -.02em 0 14px}
+  .say{display:block;max-width:none}
+  .say strong{display:block;margin:4px 0 12px;font-size:clamp(50px,17vw,76px)}
+  .cards{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/"><svg viewBox="16 16 96 96" aria-hidden="true"><defs><linearGradient id="vomS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b82ff"/><stop offset=".33" stop-color="#1fc878"/><stop offset=".66" stop-color="#ffbf1f"/><stop offset="1" stop-color="#ff5b4f"/></linearGradient><linearGradient id="vomB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5b4f"/><stop offset="1" stop-color="#ff2f87"/></linearGradient></defs><rect x="16.75" y="16.75" width="94.5" height="94.5" rx="26" fill="#fff" stroke="#e3e7f3" stroke-width="1.5"/><rect x="30" y="37" width="38" height="62" rx="10" fill="none" stroke="url(#vomS)" stroke-width="7"/><circle cx="49" cy="89" r="2.8" fill="#ff5b4f"/><path d="M60 70l8-8" stroke="#ffbf1f" stroke-width="5" stroke-linecap="round"/><circle cx="83" cy="45" r="19" fill="url(#vomB)"/><path d="M78 36v18l14-9z" fill="#fff"/></svg>Videos Off My Phone</a>
+  <a class="quiet" href="/how-it-works" aria-current="page">How it works</a>
+  <a class="quiet" href="/privacy">Privacy</a>
+  <span class="soon">Coming soon<span class="wide"> to Chrome</span></span>
+</header>
+
+<main>
+<div class="wrap">
+<div class="intro">
+<h1 class="display">How it works</h1>
+<p class="lead">Videos Off My Phone moves your biggest videos from Google Photos to your own YouTube channel, in full original quality. It checks every copy, then deletes the originals after your yes. Your phone and your Google storage get the space back.</p>
+</div>
+
+<ol class="steps" role="list">
+<li><div class="slab"><b class="n" aria-hidden="true">1</b><p class="say"><strong>Choose.</strong> Your videos are listed biggest first. Tick the ones to move, or to delete.</p></div></li>
+<li><div class="slab"><b class="n" aria-hidden="true">2</b><p class="say"><strong>Move.</strong> They go straight from Google Photos to your YouTube channel. You choose who can watch: only you, people with the link, or everyone.</p></div></li>
+<li><div class="slab"><b class="n" aria-hidden="true">3</b><p class="say"><strong>Delete.</strong> Each copy is checked against the original. After your yes, the original goes to the Google Photos trash, where you can restore it for 30 days.</p></div></li>
+</ol>
+
+<section class="plain">
+<h2>What it uses, and what it never does</h2>
+<div class="cards">
+<div class="card"><h3>Google Photos</h3><p>It works in your own signed-in Google Photos tab: it lists your videos and their sizes, reads the video files to send them to YouTube, and moves an original to the trash only after you confirm it.</p></div>
+<div class="card"><h3>YouTube</h3><p>With your permission it uploads videos to your channel and reads their details back, to check that each copy is complete. It never deletes anything on YouTube.</p></div>
+<div class="card"><h3>Your data stays with you</h3><p>Videos go straight from Google to Google through your browser. The app keeps its notes on your computer only. There is no server of ours, no analytics and no ads.</p></div>
+<div class="card"><h3>Open source</h3><p>Every line is public, so anyone can check what it does. <a href="https://github.com/shlomsh/videos-off-my-phone">Read the code</a>.</p></div>
+</div>
+</section>
+
+<section class="plain">
+<h2>Google sign-in, and Google Photos</h2>
+<div class="read">
+<p>The app asks Google for two YouTube permissions:</p>
+<ul>
+<li><strong>Manage your YouTube videos</strong> (<code>youtube.upload</code>): to upload the videos you choose.</li>
+<li><strong>View your YouTube account</strong> (<code>youtube.readonly</code>): to confirm your channel, and to check each uploaded copy before anything is deleted.</li>
+</ul>
+<p>Google Photos has no public interface for this, so the app uses the same internal web calls the Google Photos website uses, in your own open Google Photos tab, with your existing session there. It never sees your password. If Google changes those calls, the app stops and deletes nothing.</p>
+<p>The app uses YouTube API Services: by using it you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. See also the <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and our <a href="/privacy">privacy policy</a>. You can remove the app’s access at any time on <a href="https://myaccount.google.com/permissions">Google’s third-party access page</a>.</p>
+<p>Videos Off My Phone’s use of information received from Google APIs will adhere to the Chrome Web Store User Data Policy and the Google API Services User Data Policy, including the Limited Use requirements.</p>
+</div>
+</section>
+
+<section class="plain last">
+<h2>Questions</h2>
+<dl class="qa">
+<dt>Does YouTube really not use my Google storage?</dt>
+<dd>Google’s own page on how storage works lists Gmail, Google Drive and Google Photos as sharing your storage. YouTube is not on that list. Google can change its rules, and YouTube has daily upload limits.</dd>
+<dt>Is the quality the same?</dt>
+<dd>The original file is uploaded, in full quality. YouTube makes its own versions to play, and it does not give back the original file, so keep anything you may need to edit later.</dd>
+<dt>When does my phone get the space back?</dt>
+<dd>When Google Photos on your phone removes the deleted video. The app shows the taps on an iPhone. Your phone may keep it in Recently Deleted for 30 days.</dd>
+<dt>What does it cost?</dt>
+<dd>Nothing. It is free and open source.</dd>
+</dl>
+</section>
+</div>
+</main>
+
+<footer><div class="wrap">
+  <span>Google Photos and YouTube are trademarks of Google LLC. This extension is not made or endorsed by Google.</span>
+  <span>Made by Shlomi Shemesh, an independent developer.</span>
+  <a href="/privacy">Privacy policy</a>
+  <a href="https://github.com/shlomsh/videos-off-my-phone">Source code</a>
+</div></footer>
+
+<script>
+(() => {   // each step lands when it scrolls into view; several at once land one after another
+  if (!document.documentElement.classList.contains('land')) return;
+  const items = [...document.querySelectorAll('.steps > li')];
+  const io = new IntersectionObserver((es) => {
+    es.filter((e) => e.isIntersecting || e.boundingClientRect.top < 0).map((e) => e.target)
+      .sort((a, b) => items.indexOf(a) - items.indexOf(b))
+      .forEach((li, i) => { io.unobserve(li); setTimeout(() => li.classList.add('on'), i * 260); });
+  }, { rootMargin: '0px 0px -18% 0px' });
+  items.forEach((li) => io.observe(li));
+})();
+</script>
+</body>
+</html>
