@@ -83,6 +83,10 @@ main{position:relative;z-index:1}
 /* The warnings were loud colour fields. The good news is quiet, the way Google's own apps say it: a white card, the colour only in the tick. */
 #goods .nag{background:#fff;color:#202124;box-shadow:0 1px 3px rgba(60,64,67,.3),0 8px 24px rgba(60,64,67,.2)}
 #goods .meta{color:#5f6368}
+/* Each good-news card in a pale Google tone, its words in the deep shade of the same colour. */
+#goods #g1{background:#d3e3fd;color:#0b2a5c} #goods #g1 .meta{color:#24467e}
+#goods #g2{background:#c4eed0;color:#0b3d1d} #goods #g2 .meta{color:#1e5b33}
+#goods #g3{background:#ffe8a6;color:#3d2c00} #goods #g3 .meta{color:#6b4e00}
 #goods .meta b::before{width:20px;height:20px;background:var(--green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.4l3 3 6-6.6' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat}
 /* Small stand-ins for what the phone really shows, stuck on each slab like a receipt. Drawn here, not screenshots. */
 #nags .nag{position:relative}
@@ -423,7 +427,7 @@ footer a{color:var(--go)}
   const DURS = [50, 38, 30, 24, 20, 16, 14], STARTS = [];   // the goodbyes get faster. Positions are in hundredths of a screen of scrolling.
   { let s = 20; for (const d of DURS) { STARTS.push(s); s += d; } }
   const ZMAX = 7, OTHER = .2;
-  const atlas = new Image(); let atlasOK = false, atlasG = null, atlasV = null;
+  const atlas = new Image(); let atlasOK = false, atlasG = null, atlasV = null, atlasW = null;
   atlas.onload = () => { atlasOK = true; variants(); kick(); }; atlas.src = '/atlas.webp';
   const AC = 9, AW = 240, AH = 180, AN = 51;
   const AVG = [[140,173,169],[137,184,187],[145,169,163],[152,134,127],[138,125,124],[166,142,130],[133,90,120],[145,99,121],[129,83,122],[169,165,152],[181,177,164],[160,157,147],[143,142,151],[142,135,130],[151,157,180],[155,156,96],[155,156,99],[160,162,103],[140,152,144],[161,174,160],[125,137,136],[150,129,110],[143,115,103],[158,142,118],[185,165,147],[198,176,153],[175,157,143],[160,156,142],[157,151,130],[167,166,159],[144,195,230],[142,188,221],[144,198,233],[159,136,124],[148,109,94],[177,164,155],[146,139,136],[144,135,135],[148,139,129],[210,209,206],[220,217,215],[202,201,194],[175,148,127],[188,158,138],[167,138,115],[175,142,128],[178,145,134],[167,138,122],[142,152,136],[143,161,154],[140,144,117]];
@@ -442,6 +446,9 @@ footer a{color:var(--go)}
     const mk = (fn) => { const c = document.createElement('canvas'); c.width = atlas.naturalWidth; c.height = atlas.naturalHeight; const x = c.getContext('2d'); x.drawImage(atlas, 0, 0); fn(x, c); return c; };
     atlasG = mk((x, c) => { x.globalCompositeOperation = 'saturation'; x.fillStyle = '#777'; x.fillRect(0, 0, c.width, c.height); x.globalCompositeOperation = 'multiply'; x.fillStyle = '#62666e'; x.fillRect(0, 0, c.width, c.height); });
     atlasV = mk((x, c) => { x.globalCompositeOperation = 'overlay'; x.globalAlpha = .5; x.drawImage(atlas, 0, 0); x.globalCompositeOperation = 'saturation'; x.globalAlpha = .2; x.fillStyle = '#f00'; x.fillRect(0, 0, c.width, c.height); });
+    // The last wall, safe on YouTube: the full colour, as bright as the day it was filmed.
+    atlasW = mk((x, c) => { if ('filter' in x) { x.clearRect(0, 0, c.width, c.height); x.filter = 'saturate(1.75) contrast(1.14) brightness(1.04)'; x.drawImage(atlas, 0, 0); x.filter = 'none'; }
+      else { x.globalCompositeOperation = 'overlay'; x.globalAlpha = .6; x.drawImage(atlas, 0, 0); x.globalCompositeOperation = 'saturation'; x.globalAlpha = .35; x.fillStyle = '#f00'; x.fillRect(0, 0, c.width, c.height); } });
   }
 
   function layout() {
@@ -649,7 +656,7 @@ footer a{color:var(--go)}
     st = { F, Z, R, up, p, Rf, K, Gt, Sm, Wl, pos, turn, held: p.some((v) => v > 0 && v < 1), oy, wall: Wl >= 1 && oy > -H, tagA: pos > 213 && !turn ? gone : 0, c1: sv, c2: sf, iv: into(sVideo) };
   }
 
-  function tileImg(t, x, y, w, h, rot, rad, alpha, grey = 0, viv = 0, glow = 0, lab = 0, live = 0, txt = '', sel = 0, ring = 0) {
+  function tileImg(t, x, y, w, h, rot, rad, alpha, grey = 0, viv = 0, glow = 0, lab = 0, live = 0, txt = '', sel = 0, ring = 0, wv = 0) {
     if (alpha <= .01 || w < .3 || h < 1) return;
     const sx0 = (t.s % AC) * AW, sy0 = Math.floor(t.s / AC) * AH, ar = w / h; let sw = AW, sh = AH;
     if (ar > AW / AH) sh = AW / ar; else sw = AH * ar;
@@ -666,9 +673,11 @@ footer a{color:var(--go)}
     if (ir > 0 || rot || pk > 0) { rq(iw, ih, ir); ctx.clip(); }
     if (atlasOK) { ctx.drawImage(atlas, sx, sy, sw, sh, -iw / 2, -ih / 2, iw, ih);
       if (viv > .01 && atlasV) { ctx.globalAlpha = alpha * viv; ctx.drawImage(atlasV, sx, sy, sw, sh, -iw / 2, -ih / 2, iw, ih); }
+      if (wv > .01 && atlasW) { ctx.globalAlpha = alpha * wv; ctx.drawImage(atlasW, sx, sy, sw, sh, -iw / 2, -ih / 2, iw, ih); }
       if (grey > .01 && atlasG) { ctx.globalAlpha = alpha * grey; ctx.drawImage(atlasG, sx, sy, sw, sh, -iw / 2, -ih / 2, iw, ih); } }
     else { ctx.fillStyle = ['#4285F4', '#34A853', '#FBBC04', '#EA4335', '#4285F4'][t.s % 5]; ctx.fillRect(-iw / 2, -ih / 2, iw, ih); }
     ctx.restore();
+    if (wv > .01 && w > 20) { ctx.globalAlpha = alpha * wv; ctx.strokeStyle = 'rgba(32,33,36,.16)'; ctx.lineWidth = 1; rq(iw - 1, ih - 1, ir); ctx.stroke(); }   // a hairline, so the pale ones keep their edge on white
     const word = txt || t.lab;
     if (lab > .02 && word && w > 54 && h > 30) { const big = w > 300, f = big ? 16 : w < 90 ? 11 : 12, in0 = big ? 12 : w < 90 ? 5 : 7;
       ctx.font = '600 ' + f + 'px "Instrument Sans",system-ui,sans-serif'; ctx.textBaseline = 'middle';
@@ -725,7 +734,7 @@ footer a{color:var(--go)}
       g.addColorStop(0, `rgba(120,168,255,${.26 * a})`); g.addColorStop(.45, `rgba(59,130,255,${.08 * a})`); g.addColorStop(1, 'rgba(59,130,255,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
     const inside = [], above = [];
     for (let i = 0; i < tiles.length; i++) {
-      const t = tiles[i]; let rot = 0, rad = 0, al = 1, grey = 0, viv = K, glow = 0, z = 0, lifted = false, lab = 1 - smooth(0, .25, F), live = 0, txt = '', sel = 0, ring = 0;
+      const t = tiles[i]; let rot = 0, rad = 0, al = 1, grey = 0, viv = K, glow = 0, z = 0, lifted = false, lab = 1 - smooth(0, .25, F), live = 0, txt = '', sel = 0, ring = 0, wv = 0;
       // Its slice of the bar.
       let bw = t.bw * Z, left;
       if (t.re != null) { const g = ease(clamp(Rf * nparts - t.re)); bw *= g; if (g <= 0) al = 0; left = zx(T.x + tw - tot + t.fo); }
@@ -754,9 +763,9 @@ footer a{color:var(--go)}
         if (Sm > 0) { const e2 = ease(Sm), k = YT.w / S.w; x = mix(x, YT.x + (s.x - S.x) * k, e2); y = mix(y, YT.y + (s.y - S.y) * k, e2); w = mix(w, s.w * k + .4, e2); h = mix(h, s.h * k + .4, e2); }
         if (Wl > 0) { const e3 = ease(clamp((Wl - t.dw * .4) / .6)), arc = Math.sin(Math.PI * e3), sc = mix(.955, .83, Lo), bob = e3 * (.3 + Lo * 1.4), hop = sp.hop.x * (.5 + t.c) * e3;
           x = mix(x, t.x, e3) + arc * t.a * W * .05 + Math.sin(tsec * .5 + i) * 2.5 * bob; y = mix(y, t.fy, e3) - arc * Math.abs(t.b) * H * .07 + Math.cos(tsec * .42 + i * 1.7) * 2.5 * bob + hop + st.oy;
-          w = mix(w, t.w * sc, e3); h = mix(h, t.fh * sc, e3); rot = arc * t.b * .3 + t.a * .022 * e3 * Lo; rad = 10 * e3; if (t.extra) al = e3; lab = smooth(.85, 1, e3); txt = t.tag; viv = mix(viv, .6, e3); z = 1; lifted = true; }
+          w = mix(w, t.w * sc, e3); h = mix(h, t.fh * sc, e3); rot = arc * t.b * .3 + t.a * .022 * e3 * Lo; rad = 10 * e3; if (t.extra) al = e3; lab = smooth(.85, 1, e3); txt = t.tag; viv = mix(viv, .6, e3) * (1 - e3); wv = e3; z = 1; lifted = true; }
       }
-      (lifted || !inbar ? above : inside).push([z, t, x, y, w, h, rot, rad, al, grey, viv, glow, lab, live, txt, sel, ring]);
+      (lifted || !inbar ? above : inside).push([z, t, x, y, w, h, rot, rad, al, grey, viv, glow, lab, live, txt, sel, ring, wv]);
     }
     if (inside.length) { ctx.save(); barPath(); ctx.clip(); for (const a of inside) tileImg(...a.slice(1)); ctx.restore(); }
     if (Z > 1.02 && R > 0 && R < 1) { const yl = zx(T.x + tw - G.ygap), yw = G.ygap * Z * R; ctx.save(); barPath(); ctx.clip(); ctx.strokeStyle = '#EA4335'; ctx.lineWidth = 4; ctx.strokeRect(yl + 2, T.y + 2, Math.max(0, yw - 4), T.h - 4); ctx.restore(); }
@@ -765,7 +774,7 @@ footer a{color:var(--go)}
       const ga = st.tagA * (1 - smooth(.6, 1, Rf)); if (ga > 0 && tot > 2) { const gx0 = right - tot + freed * ease(clamp(Rf)), yy = T.y + T.h + 6; ctx.globalAlpha = ga; ctx.strokeStyle = '#FBBC04'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(gx0, yy - 3); ctx.lineTo(gx0, yy + 3); ctx.moveTo(gx0, yy); ctx.lineTo(right - 2, yy); ctx.moveTo(right - 2, yy - 3); ctx.lineTo(right - 2, yy + 3); ctx.stroke(); }
       ctx.restore(); }
     above.sort((a, b) => a[0] - b[0]); for (const a of above) tileImg(...a.slice(1));
-    if (grain) { ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .08; ctx.fillStyle = grain; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+    if (grain && Wl < 1) { ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .08 * (1 - smooth(0, .6, Wl)); ctx.fillStyle = grain; ctx.fillRect(0, 0, W, H); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
     // The headline is pressed down with the wall.
     $('crush').style.setProperty('--press', top.toFixed(1) + 'px'); $('crush').style.setProperty('--k', kk.toFixed(4));
   }
